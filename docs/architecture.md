@@ -245,7 +245,7 @@ ADX compiles to vanilla JavaScript:
 - Optimized DOM operations
 - No virtual DOM overhead
 
-**Milestone 1 (implemented).** `adx build <dir>` emits three files per component
+**Milestone 1 (implemented).** `adx build <dir>` emits four files per component
 into `dist/<name>/`:
 
 - `index.html` — a complete static document. The HTML emitter resolves every
@@ -261,10 +261,15 @@ into `dist/<name>/`:
   `tokens.breakpoint-*` resolved to px. An unknown token fails the build with
   `[ADX] style.adx.css:<line> - Unknown token "..." (available: ...)`.
 - `glue.js` — a **hydration-only** ES module (no shared runtime, no vDOM). It
-  imports the behavior exports, calls `setup(props)` once, selects the existing
-  DOM by `data-adx-c`/`data-adx-b`, and attaches each `@event` to its handler. It
-  contains no `createElement`: content lives in the HTML; the glue only wires
-  interactivity.
+  imports the behavior exports from `./behavior.js`, calls `setup(props)` once,
+  selects the existing DOM by `data-adx-c`/`data-adx-b`, and attaches each
+  `@event` to its handler. It contains no `createElement`: content lives in the
+  HTML; the glue only wires interactivity.
+- `behavior.js` — the component's `behavior.adx.js` copied verbatim (it is
+  already plain ES-module JS). The glue imports `setup`/`on<Event>` from this
+  file, so emitting it alongside the glue makes the hydration import resolve in
+  the browser. The compiler only *scans* this source at build time; it never
+  executes it.
 
 `scopeId` is deterministic (`c` + first 7 hex of `sha256(name \0 dirBasename)`),
 so repeated builds of the same component are byte-stable.

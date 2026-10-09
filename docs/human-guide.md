@@ -594,8 +594,10 @@ adx help               # Show help
 What `adx build` produces for each component: a complete `index.html` (all
 `{{...}}` already filled in, so search engines and AI crawlers see the real
 content without running any JavaScript), a scoped `style.css` with your design
-tokens resolved to real values, and a tiny `glue.js` that only *attaches*
-interactivity to the HTML that's already there — it never rebuilds the page.
+tokens resolved to real values, a tiny `glue.js` that only *attaches*
+interactivity to the HTML that's already there (it never rebuilds the page), and
+a `behavior.js` — your `behavior.adx.js` copied as-is — that the glue imports for
+its `setup`/`on<Event>` handlers.
 
 ### Compiling a component today
 
@@ -609,7 +611,7 @@ cd compiler
 npm install        # first time only
 npm run build      # tsc -> dist/
 
-# Compile the fixture to dist/user-card/{index.html,style.css,glue.js}
+# Compile the fixture to dist/user-card/{index.html,style.css,glue.js,behavior.js}
 node dist/cli.js build fixtures/user-card --out dist
 
 # Validate without writing files (prints OK, or an [ADX] error)

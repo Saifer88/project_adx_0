@@ -13,7 +13,7 @@
  * No other subcommands exist in M1.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { compileComponent, checkComponent } from "./compile.js";
 
@@ -82,6 +82,15 @@ function run(argv: string[]): number {
     writeFileSync(join(outDir, "index.html"), result.html, "utf8");
     writeFileSync(join(outDir, "style.css"), result.css, "utf8");
     writeFileSync(join(outDir, "glue.js"), result.glue, "utf8");
+    // The glue module hydrates the static HTML by importing the component's
+    // behavior exports from `./behavior.js`. Emit that module alongside the glue
+    // so the import resolves in the browser — `behavior.adx.js` is already plain
+    // ES-module JS (scanned, never executed at build time), so it is copied as-is.
+    writeFileSync(
+      join(outDir, "behavior.js"),
+      readFileSync(join(args.dir, "behavior.adx.js"), "utf8"),
+      "utf8",
+    );
     process.stdout.write(`Built ${result.manifest.name} -> ${outDir}\n`);
     return 0;
   } catch (err) {

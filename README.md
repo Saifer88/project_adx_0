@@ -75,7 +75,7 @@ component-name/
 | Pattern Library | ❌ Not Started | High |
 | CLI Tool | 🚧 In Progress (`adx build` + `adx check` landed; `dev`/`create`/`tokens`/`pattern` planned) | High |
 | Example Components | 🚧 In Progress (UserCard compiles end-to-end to HTML/CSS/glue) | Medium |
-| Build System | 🚧 In Progress (M1 `adx build` emits `dist/<name>/index.html|style.css|glue.js`) | High |
+| Build System | 🚧 In Progress (M1 `adx build` emits `dist/<name>/index.html|style.css|glue.js|behavior.js`) | High |
 | Dev Server (Hot Reload) | ❌ Not Started | Medium |
 | Testing Framework | ❌ Not Started | Medium |
 | VS Code Extension | ❌ Not Started | Low |

@@ -408,7 +408,7 @@ M1 compiler (`compiler/`) implements two commands; the rest are planned.
 
 ```bash
 # IMPLEMENTED (M1)
-adx build <dir> [--out dist] [--tokens <path>]  # emit dist/<name>/index.html|style.css|glue.js
+adx build <dir> [--out dist] [--tokens <path>]  # emit dist/<name>/index.html|style.css|glue.js|behavior.js
 adx check <dir> [--tokens <path>]               # validate+emit in-memory; prints OK or [ADX] error
 
 # PLANNED
@@ -428,9 +428,12 @@ Build output per component (M1):
   `weight`→font-weight, `shadow`→box-shadow, …), every `tokens.*` resolved, each
   selector scoped as `<sel>[data-adx-c="<id>"]`, `@media` passed through with
   `tokens.breakpoint-*` resolved to px.
-- `glue.js` — hydration-only ES module: imports behavior exports, calls
-  `setup(props)` once, selects existing DOM by `data-adx-c`/`data-adx-b`, wires
-  each `@event` to its handler `(state, event)`. No vDOM, no `createElement`.
+- `glue.js` — hydration-only ES module: imports behavior exports from
+  `./behavior.js`, calls `setup(props)` once, selects existing DOM by
+  `data-adx-c`/`data-adx-b`, wires each `@event` to its handler `(state, event)`.
+  No vDOM, no `createElement`.
+- `behavior.js` — `behavior.adx.js` copied verbatim (plain ESM); the glue's
+  import target. Scanned at build time, never executed.
 
 `scopeId` is deterministic: `c` + first 7 hex of `sha256(name \0 dirBasename)`.
 
