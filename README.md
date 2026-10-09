@@ -2,6 +2,9 @@
 
 **Agent-Driven Experience Framework**
 
+![SEO Friendly](https://img.shields.io/badge/SEO-friendly-brightgreen)
+![Token Efficient](https://img.shields.io/badge/AI-token--efficient-blue)
+
 ## Mission Statement
 
 **Primary Goal**: Minimize token consumption for AI coding agents while maintaining human comprehensibility.
