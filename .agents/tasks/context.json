@@ -1,0 +1,25 @@
+{
+  "project_type": "Compile-to-vanilla frontend framework (ADX). Milestone 1 is a TypeScript/Node compiler distributed as an npm package that turns one .adx component directory into complete static HTML + plain CSS + a tiny hydration-only ES-module glue script. No framework runtime, no vDOM.",
+  "language": "TypeScript (ESM, Node)",
+  "build_system": "npm + tsc. The compiler package lives in compiler/ with its own package.json (\"type\":\"module\"). Build = `tsc -p tsconfig.json` -> dist/. Nothing exists under compiler/ yet; FEAT-001 scaffolds it.",
+  "test_framework": "Vitest (vitest run). Tests live in compiler/test/*.test.ts.",
+  "build_command": "cd compiler && npm run build",
+  "test_command": "cd compiler && npm test   (alias for `vitest run`); lint via `npm run lint` (ESLint flat config).",
+  "verification_instructions": "After each feature: from compiler/, run `npm install` (first time), `npm run build`, `npm test`, and `npm run lint`. For CLI/SEO checks, build then run `node dist/cli.js build fixtures/user-card --out dist` and `node dist/cli.js check fixtures/user-card`, and confirm dist/user-card/index.html contains no `{{` (grep). Every feature must leave the compiler building, tests green, and lint clean.",
+  "snapshot_or_generated_files": "The compiler emits dist/<component>/index.html|style.css|glue.js when `adx build` runs. dist/ is gitignored (not checked in). No other generated-and-committed files.",
+  "environment_constraints": "All file work is inside the worktree /Users/pirrima001/coding/personal/project_adx_0/.worktrees/adx-compiler-m1 — relative paths run from compiler/ resolve there; never write to the parent workspace /Users/pirrima001/coding/personal/project_adx_0. Use `git -C <worktree>` for git. Commit locally on branch adx-compiler-m1; never push. tokens/design-tokens.json lives at the WORKTREE ROOT, not under compiler/.",
+  "contribution_requirements": "Steering rules apply: (1) token efficiency + AI-workability are the north star; (2) SEO-crawlability is first-class — compiler MUST emit complete static HTML with {{interpolations}} resolved at build time, glue only hydrates existing DOM; (3) keep docs in sync in the same change (agent-reference.md compact, human-guide.md/README warm); (4) error messages MUST match `[ADX] <file>:<line> - <message>` exactly (manifest errors omit the line).",
+  "key_patterns": "Hand-written tokenizer + recursive-descent parser for structure.adx (no parser-generator). Build-time expression evaluation is a SAFE property walker over ident/member only (no eval, no JS operators). behavior.adx.js is scanned for exports BY NAME, not deep-parsed. HTML scoping = deterministic data-adx-c=\"<scopeId>\" attribute + CSS selectors prefixed with [data-adx-c=\"<id>\"]. Grammar is pinned in docs/adx-grammar.md (already written) — it is the parser's contract; AST shape is in its section 8.",
+  "relevant_files": [
+    "docs/adx-grammar.md (parser contract — READ FIRST for any parser/codegen work)",
+    "docs/agent-reference.md (token tables, syntax, error-format examples, Compilation section to update)",
+    "docs/architecture.md (runtime model, scoping rationale, to update)",
+    "docs/human-guide.md (UserCard example used for the fixture; to update)",
+    "docs/token-efficiency.md (UserCard token-count reference)",
+    ".agents/tasks/plan.md (the full ordered plan this task derives from)",
+    "README.md (status table to flip)",
+    "tokens/design-tokens.json (created in FEAT-001, at worktree root)",
+    "compiler/fixtures/user-card/* (golden input, created in FEAT-001)"
+  ],
+  "directory_structure": "Worktree root holds README.md, docs/, .kiro/steering/, .agents/tasks/, and (after FEAT-001) tokens/design-tokens.json + compiler/. compiler/ holds package.json, tsconfig.json, vitest.config.ts, eslint.config.js, src/ (errors, source, structure/, expr/, manifest/, tokens/, behavior/, codegen/, compile.ts, cli.ts), test/, fixtures/user-card/, and gitignored dist/."
+}

@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-003",
+  "type": "docs",
+  "description": "Documentation sync (REQUIRED by the documentation steering). Depends on FEAT-001 and FEAT-002 being implemented. Flips ONLY the capabilities M1 actually ships (build/check for a single component, the token system, the build-time static-HTML + hydration-glue pipeline) from 'planned' to real across the four docs, keeping agent-reference.md compact and human-guide.md/README warm. Dev server, create/tokens/pattern CLI, WCAG audit, and sitemap/robots stay labeled planned. Corresponds to plan.md item 16.",
+  "status": "pending",
+  "steps": [
+    "Read .agents/tasks/context.json and the current docs/architecture.md, docs/agent-reference.md, docs/human-guide.md, README.md FIRST.",
+    "docs/architecture.md: add a concise 'Compiler (M1, implemented)' note describing the build-time static-HTML + hydration-only glue pipeline (Option 1) and the deterministic data-adx-c attribute scoping. Match the doc's existing voice.",
+    "docs/agent-reference.md: in the Compilation section, mark `adx build` and `adx check` as working for a single component; keep `adx dev`/`adx tokens`/`adx create`/`adx pattern` labeled planned; add a reference link to docs/adx-grammar.md. Keep it compact/scannable.",
+    "docs/human-guide.md: add a short 'Compiling a component today' subsection showing the real invocation (node dist/cli.js build fixtures/user-card --out dist, then check), noting the single-component M1 scope. Warm tone.",
+    "README.md: flip the Compiler Implementation, Design Token System, and Build System rows from 'Not Started' to in-progress with an M1 scope note (single-component build/check); leave Pattern Library, Dev Server, Testing Framework, and others as-is. Keep version/status accurate."
+  ],
+  "acceptance_criteria": [
+    "The four docs mark only the implemented slice (single-component build/check, token system, static-HTML+glue pipeline) as real; dev server, patterns, create/tokens CLI, WCAG audit, and sitemap/robots remain labeled planned.",
+    "docs/agent-reference.md stays compact and links docs/adx-grammar.md; human-guide.md and README stay warm/explanatory.",
+    "The compiler still builds, tests, and lints clean after the doc edits (no code regressions introduced)."
+  ],
+  "verification": [
+    "cd compiler && npm run build && npm test && npm run lint",
+    "Re-read docs/architecture.md, docs/agent-reference.md, docs/human-guide.md, README.md and confirm only implemented capabilities are flipped to real and planned ones remain labeled planned."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

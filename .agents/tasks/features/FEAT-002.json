@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Codegen + end-to-end pipeline + CLI + SEO verification. Depends on FEAT-001's parsers/loaders/evaluator. Implements the three emitters (complete static HTML with build-time-resolved interpolations and deterministic data-adx-c scoping; CSS transform that expands abbreviated props, resolves tokens.*, auto-scopes, and passes media queries; hydration-only ES-module glue per Option 1), wires them into a compileComponent/checkComponent pipeline, exposes the `adx build` / `adx check` CLI (only), and verifies the SEO contract on real emitted HTML. Corresponds to plan.md items 10-15.",
+  "status": "pending",
+  "steps": [
+    "Read docs/adx-grammar.md (AST shape, section 8) and .agents/tasks/context.json FIRST. Implement src/codegen/scope.ts (deterministic scopeId = short hash of component name + relative path) and src/codegen/html.ts (emitHtml(ast, ctx): string): resolve all {{interp}} and :prop at build time, apply :if/:else (omit falsy), expand :for in loop scope, emit <slot> as data-adx-slot=\"<name>\" placeholder, add data-adx-c=\"<scopeId>\" to owned elements and stable data-adx-b hooks on nodes with bindings/events, preserve semantic tags, self-close void elements, leave zero `{{` in output. (plan item 10)",
+    "Implement src/codegen/css.ts (transformCss(src, ctx): string): strip `@use tokens;`, expand abbreviated props (pad/bg/radius/size/weight + documented layout/visual/typography set), resolve every tokens.* via the token loader, prefix each selector with [data-adx-c=\"<id>\"], pass @media through resolving tokens.breakpoint-*. Unknown token throws the EXACT `[ADX] style.adx.css:<line> - Unknown token \"tokens.space-5\" (available: 0,1,2,3,4,6,8,12,16)` error. (plan item 11)",
+    "Implement src/codegen/glue.ts (emitGlue(ast, behavior, ctx): string): ES module that imports behavior exports, calls setup(props) once, selects existing DOM by data-adx-c/data-adx-b (never rebuilds DOM), attaches each @event to its handler, and re-runs only affected bindings/text on handler invocation. No shared-runtime import, no vDOM, no createElement DOM construction. (plan item 12)",
+    "Implement src/compile.ts: compileComponent(dir, opts): {html, css, glue} and checkComponent(dir) running manifest -> structure parse -> behavior scan -> tokens -> emit; check validates and emits all stages but writes nothing. (plan item 13)",
+    "Implement src/cli.ts (shebang `#!/usr/bin/env node`): parse argv for `build <componentDir> [--out dist] [--tokens tokens/design-tokens.json]` (writes dist/<name>/index.html|style.css|glue.js) and `check <componentDir>` (prints OK or the [ADX] error, non-zero exit on failure). No other subcommands. Confirm package.json bin -> dist/cli.js. (plan item 14)",
+    "Add Vitest tests: test/html-emit.test.ts (UserCard HTML snapshot: resolved text, :if omission, :for expansion, slot placeholder, zero `{{`), test/css-transform.test.ts (expand+scope+resolve; tokens.space-5 exact error; breakpoint-md -> 768px), test/glue-emit.test.ts (valid ESM, imports onClick, references scope hooks, no createElement), test/compile.test.ts (end-to-end three artifacts; checkComponent passes on valid fixture, throws right [ADX] on a broken copy), test/seo-contract.test.ts (emitted HTML has no `{{`, correct semantic tags + heading order). (plan items 10-13,15)"
+  ],
+  "acceptance_criteria": [
+    "cd compiler && npm run build && npm test && npm run lint all pass.",
+    "node dist/cli.js build fixtures/user-card --out dist writes dist/user-card/index.html, style.css, and glue.js.",
+    "node dist/cli.js check fixtures/user-card exits 0 on the valid fixture and non-zero with an [ADX] message on a broken copy.",
+    "dist/user-card/index.html contains the resolved UserCard text (no `{{`), preserves semantic tags, and needs no JS to show content (SEO contract).",
+    "transformCss throws exactly `[ADX] style.adx.css:<line> - Unknown token \"tokens.space-5\" (available: 0,1,2,3,4,6,8,12,16)` for an unknown spacing token; emitGlue output contains no createElement.",
+    "CSS selectors are scoped with [data-adx-c=\"<id>\"] and @media breakpoints resolve to px."
+  ],
+  "verification": [
+    "cd compiler && npm run build && npm test && npm run lint",
+    "cd compiler && node dist/cli.js build fixtures/user-card --out dist && node dist/cli.js check fixtures/user-card && grep -L \"{{\" dist/user-card/index.html >/dev/null && echo 'seo ok'",
+    "cd compiler && npx vitest run test/html-emit.test.ts test/css-transform.test.ts test/glue-emit.test.ts test/compile.test.ts test/seo-contract.test.ts"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

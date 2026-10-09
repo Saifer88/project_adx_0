@@ -70,11 +70,11 @@ component-name/
 | Architecture Specification | ✅ Complete | High |
 | Token Efficiency Analysis | ✅ Complete | High |
 | Framework Comparison | ✅ Complete | Medium |
-| Compiler Implementation | ❌ Not Started | High |
-| Design Token System | ❌ Not Started | High |
+| Compiler Implementation | 🚧 In Progress (M1 front-end: parse/validate stages landed; codegen pending) | High |
+| Design Token System | ✅ Complete (`tokens/design-tokens.json` + loader) | High |
 | Pattern Library | ❌ Not Started | High |
 | CLI Tool | ❌ Not Started | High |
-| Example Components | ❌ Not Started | Medium |
+| Example Components | 🚧 In Progress (UserCard compiler fixture) | Medium |
 | Build System | ❌ Not Started | High |
 | Dev Server (Hot Reload) | ❌ Not Started | Medium |
 | Testing Framework | ❌ Not Started | Medium |

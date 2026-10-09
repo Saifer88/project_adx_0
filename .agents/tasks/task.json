@@ -1,0 +1,7 @@
+{
+  "task_id": "task-adx-compiler-m1",
+  "task_description": "Build Milestone 1 of the ADX compiler: a TypeScript/Node npm package in compiler/ that compiles one .adx component directory into complete static HTML + plain CSS + a hydration-only ES-module glue script, with an `adx build` / `adx check` CLI, plus design tokens, a UserCard fixture, and synced docs. Static-HTML-first for SEO; token-efficient and AI-friendly by design.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
