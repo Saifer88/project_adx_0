@@ -62,6 +62,25 @@ component-name/
 **Version**: 0.1.0-alpha  
 **Target Release**: Q1 2027
 
+## Development Roadmap
+
+| Component | Status | Priority |
+|-----------|--------|----------|
+| Core Documentation | ✅ Complete | High |
+| Architecture Specification | ✅ Complete | High |
+| Token Efficiency Analysis | ✅ Complete | High |
+| Framework Comparison | ✅ Complete | Medium |
+| Compiler Implementation | ❌ Not Started | High |
+| Design Token System | ❌ Not Started | High |
+| Pattern Library | ❌ Not Started | High |
+| CLI Tool | ❌ Not Started | High |
+| Example Components | ❌ Not Started | Medium |
+| Build System | ❌ Not Started | High |
+| Dev Server (Hot Reload) | ❌ Not Started | Medium |
+| Testing Framework | ❌ Not Started | Medium |
+| VS Code Extension | ❌ Not Started | Low |
+| Browser DevTools | ❌ Not Started | Low |
+
 ---
 
 *"Make it cheap for AI. Make it beautiful for humans."*
