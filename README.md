@@ -110,11 +110,14 @@ basename (e.g. `user-card`). Interpolations resolve at build time, so
 - **Architecture**: See `docs/architecture.md`
 - **Grammar**: See `docs/adx-grammar.md`
 - **Token Analysis**: See `docs/token-efficiency.md`
+- **Roadmap / Next Steps**: See `docs/roadmap.md`
 
 ## Status
 
 **Version**: 0.1.0-alpha  
 **Target Release**: Q1 2027
+
+**Next up — Milestone 2**: real data binding (fills content from supplied data, not just defaults), multi-component pages, component composition + slots, defined reactivity, and a measured token benchmark. Full detail in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Development Roadmap
 
