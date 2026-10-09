@@ -576,15 +576,26 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
+Milestone 1 ships two working commands (in `compiler/`); the rest are planned.
+
 ```bash
+# Working today (M1)
+adx build <dir> [--out dist] [--tokens <path>]  # compile a component to static HTML + CSS + glue
+adx check <dir> [--tokens <path>]               # validate a component (prints OK, or an [ADX] error)
+
+# Planned
 adx create <name>      # Create new project
-adx dev                # Start dev server
-adx build              # Build for production
-adx check              # Validate components
+adx dev                # Start dev server (hot reload)
 adx tokens             # List all available tokens
 adx pattern <name>     # Generate pattern component
 adx help               # Show help
 ```
+
+What `adx build` produces for each component: a complete `index.html` (all
+`{{...}}` already filled in, so search engines and AI crawlers see the real
+content without running any JavaScript), a scoped `style.css` with your design
+tokens resolved to real values, and a tiny `glue.js` that only *attaches*
+interactivity to the HTML that's already there — it never rebuilds the page.
 
 ## Configuration
 

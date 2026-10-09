@@ -245,6 +245,30 @@ ADX compiles to vanilla JavaScript:
 - Optimized DOM operations
 - No virtual DOM overhead
 
+**Milestone 1 (implemented).** `adx build <dir>` emits three files per component
+into `dist/<name>/`:
+
+- `index.html` — a complete static document. The HTML emitter resolves every
+  `{{interpolation}}` and `:prop` binding at build time, applies `:if`/`:else`
+  (falsy branches are omitted) and unrolls `:for`, and renders `<slot>` as a
+  `data-adx-slot="<name>"` placeholder. Elements the component owns carry a
+  deterministic `data-adx-c="<scopeId>"`; nodes with bindings/events also carry a
+  stable `data-adx-b="<scopeId>-<n>"` hook. **Zero `{{` remain** — this is the
+  SEO contract (a crawler that never runs JS sees the full content).
+- `style.css` — the CSS transform strips `@use tokens;`, expands abbreviated
+  properties, resolves every `tokens.*` to its design-token value, scopes each
+  selector by attaching `[data-adx-c="<id>"]`, and passes `@media` through with
+  `tokens.breakpoint-*` resolved to px. An unknown token fails the build with
+  `[ADX] style.adx.css:<line> - Unknown token "..." (available: ...)`.
+- `glue.js` — a **hydration-only** ES module (no shared runtime, no vDOM). It
+  imports the behavior exports, calls `setup(props)` once, selects the existing
+  DOM by `data-adx-c`/`data-adx-b`, and attaches each `@event` to its handler. It
+  contains no `createElement`: content lives in the HTML; the glue only wires
+  interactivity.
+
+`scopeId` is deterministic (`c` + first 7 hex of `sha256(name \0 dirBasename)`),
+so repeated builds of the same component are byte-stable.
+
 ## Quality Enforcement
 
 Every component automatically gets:

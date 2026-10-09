@@ -37,3 +37,13 @@ export type { TokenTable, RawTokens } from "./tokens/types.js";
 
 export { scanBehavior } from "./behavior/scan.js";
 export type { BehaviorApi } from "./behavior/types.js";
+
+export { scopeId, bindingId } from "./codegen/scope.js";
+export { emitHtml } from "./codegen/html.js";
+export type { BindingHook, HtmlEmitResult } from "./codegen/html.js";
+export { transformCss } from "./codegen/css.js";
+export { emitGlue } from "./codegen/glue.js";
+export type { CodegenContext } from "./codegen/context.js";
+
+export { compileComponent, checkComponent } from "./compile.js";
+export type { CompileOptions, CompiledComponent } from "./compile.js";

@@ -402,12 +402,35 @@ ADX provides concise, actionable errors:
 
 ## Compilation
 
+M1 compiler (`compiler/`) implements two commands; the rest are planned.
+
 ```bash
-adx build              # Build production
+# IMPLEMENTED (M1)
+adx build <dir> [--out dist] [--tokens <path>]  # emit dist/<name>/index.html|style.css|glue.js
+adx check <dir> [--tokens <path>]               # validate+emit in-memory; prints OK or [ADX] error
+
+# PLANNED
 adx dev                # Dev server with hot reload
-adx check              # Validate without building
 adx tokens             # List all available tokens
+adx create / pattern   # Scaffolding
 ```
+
+Build output per component (M1):
+
+- `index.html` — complete static HTML; every `{{...}}`/`:prop` resolved at build
+  time, `:if`/`:else`/`:for` applied, `<slot>` -> `data-adx-slot` placeholder.
+  Owned elements carry `data-adx-c="<scopeId>"`; bound/event nodes also carry a
+  stable `data-adx-b="<scopeId>-<n>"` hook. Zero `{{` remain (SEO contract).
+- `style.css` — `@use tokens;` stripped, abbreviated props expanded
+  (`pad`→padding, `bg`→background, `radius`→border-radius, `size`→font-size,
+  `weight`→font-weight, `shadow`→box-shadow, …), every `tokens.*` resolved, each
+  selector scoped as `<sel>[data-adx-c="<id>"]`, `@media` passed through with
+  `tokens.breakpoint-*` resolved to px.
+- `glue.js` — hydration-only ES module: imports behavior exports, calls
+  `setup(props)` once, selects existing DOM by `data-adx-c`/`data-adx-b`, wires
+  each `@event` to its handler `(state, event)`. No vDOM, no `createElement`.
+
+`scopeId` is deterministic: `c` + first 7 hex of `sha256(name \0 dirBasename)`.
 
 ---
 

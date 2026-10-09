@@ -70,12 +70,12 @@ component-name/
 | Architecture Specification | ✅ Complete | High |
 | Token Efficiency Analysis | ✅ Complete | High |
 | Framework Comparison | ✅ Complete | Medium |
-| Compiler Implementation | 🚧 In Progress (M1 front-end: parse/validate stages landed; codegen pending) | High |
+| Compiler Implementation | 🚧 In Progress (M1 complete: parse/validate + codegen emit static HTML/CSS/glue) | High |
 | Design Token System | ✅ Complete (`tokens/design-tokens.json` + loader) | High |
 | Pattern Library | ❌ Not Started | High |
-| CLI Tool | ❌ Not Started | High |
-| Example Components | 🚧 In Progress (UserCard compiler fixture) | Medium |
-| Build System | ❌ Not Started | High |
+| CLI Tool | 🚧 In Progress (`adx build` + `adx check` landed; `dev`/`create`/`tokens`/`pattern` planned) | High |
+| Example Components | 🚧 In Progress (UserCard compiles end-to-end to HTML/CSS/glue) | Medium |
+| Build System | 🚧 In Progress (M1 `adx build` emits `dist/<name>/index.html|style.css|glue.js`) | High |
 | Dev Server (Hot Reload) | ❌ Not Started | Medium |
 | Testing Framework | ❌ Not Started | Medium |
 | VS Code Extension | ❌ Not Started | Low |
