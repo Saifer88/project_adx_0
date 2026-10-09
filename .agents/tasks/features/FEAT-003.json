@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "docs",
   "description": "Documentation sync (REQUIRED by the documentation steering). Depends on FEAT-001 and FEAT-002 being implemented. Flips ONLY the capabilities M1 actually ships (build/check for a single component, the token system, the build-time static-HTML + hydration-glue pipeline) from 'planned' to real across the four docs, keeping agent-reference.md compact and human-guide.md/README warm. Dev server, create/tokens/pattern CLI, WCAG audit, and sitemap/robots stay labeled planned. Corresponds to plan.md item 16.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Read .agents/tasks/context.json and the current docs/architecture.md, docs/agent-reference.md, docs/human-guide.md, README.md FIRST.",
     "docs/architecture.md: add a concise 'Compiler (M1, implemented)' note describing the build-time static-HTML + hydration-only glue pipeline (Option 1) and the deterministic data-adx-c attribute scoping. Match the doc's existing voice.",
@@ -20,5 +20,5 @@
     "Re-read docs/architecture.md, docs/agent-reference.md, docs/human-guide.md, README.md and confirm only implemented capabilities are flipped to real and planned ones remain labeled planned."
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "FEAT-002's commit had already flipped most M1 doc content (architecture.md M1 pipeline + data-adx-c note, agent-reference.md Compilation section with build/check working and dev/tokens/create/pattern planned, human-guide.md CLI split, README Compiler/Token/Build rows). FEAT-003 completed the two remaining gaps: (1) added a 'Grammar/AST contract' link to docs/adx-grammar.md at the top of agent-reference.md's Compilation section; (2) added a warm 'Compiling a component today' subsection to human-guide.md showing the real `node dist/cli.js build fixtures/user-card --out dist` + `check` invocation and the single-component M1 scope. Verified the documented invocation runs: build emits dist/user-card/{index.html,style.css,glue.js}, check prints OK, and index.html contains zero `{{` (SEO contract). Confirmed only the implemented slice is marked real (single-component build/check, token system, static-HTML+hydration glue); dev server, create/tokens/pattern CLI, WCAG audit, and sitemap/robots remain labeled planned. compiler build + 77 vitest tests + eslint all pass clean (doc-only edits, no code regressions)."
 }

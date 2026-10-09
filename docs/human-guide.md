@@ -597,6 +597,30 @@ content without running any JavaScript), a scoped `style.css` with your design
 tokens resolved to real values, and a tiny `glue.js` that only *attaches*
 interactivity to the HTML that's already there — it never rebuilds the page.
 
+### Compiling a component today
+
+The `adx` wrapper command is still coming, but the compiler itself already runs.
+From `compiler/`, build it once and point the CLI at a component directory. M1
+compiles one component at a time, and the bundled `user-card` fixture is the
+easiest thing to try:
+
+```bash
+cd compiler
+npm install        # first time only
+npm run build      # tsc -> dist/
+
+# Compile the fixture to dist/user-card/{index.html,style.css,glue.js}
+node dist/cli.js build fixtures/user-card --out dist
+
+# Validate without writing files (prints OK, or an [ADX] error)
+node dist/cli.js check fixtures/user-card
+```
+
+Open `dist/user-card/index.html` and you'll see the real content already in the
+markup — no `{{name}}` placeholders left for the browser to fill in. That's the
+SEO contract working: a crawler that never runs JavaScript still sees the whole
+component.
+
 ## Configuration
 
 `adx.config.json`:
