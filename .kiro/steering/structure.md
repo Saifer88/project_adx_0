@@ -2,20 +2,38 @@
 
 ## Repository layout
 
+The repo **is** the ADX compiler: a single npm package (`adx`) rooted at the repo
+root. There is no `compiler/` subdirectory — source, tests, and config live at root.
+
 ```
-project_adx_0/
-  README.md              # Project overview and mission
+project_adx_0/              # npm package root (name: adx)
+  package.json              # the adx package (bin: adx -> dist/cli.js)
+  tsconfig.json  vitest.config.ts  eslint.config.js  .gitignore
+  src/                      # compiler source (TypeScript, ESM)
+    cli.ts                  # adx build / adx check entry
+    compile.ts              # compile pipeline
+    structure/              # .structure.adx tokenizer + parser + AST
+    manifest/               # manifest.json loader + validator
+    behavior/               # behavior.adx.js export scanner
+    tokens/                 # design-token loader
+    expr/                   # safe build-time expression evaluator
+    codegen/                # html.ts, css.ts, glue.ts, scope.ts, context.ts
+    errors.ts  source.ts  index.ts
+  test/                     # Vitest suites (mirror src/)
+  fixtures/user-card/       # golden example component (the four .adx files)
+  tokens/design-tokens.json # design-system token source
   docs/
-    agent-reference.md   # Source of truth for agents (syntax, tokens, patterns)
-    architecture.md      # Design pillars and component anatomy
-    comparison.md        # ADX vs React/Vue/Svelte token analysis
-    human-guide.md       # Onboarding guide for human developers
-    token-efficiency.md  # Detailed token-cost analysis
-  .kiro/
-    steering/            # Steering files for Kiro
+    agent-reference.md      # canonical agent reference (syntax, tokens, CLI, baselines)
+    adx-grammar.md          # .structure.adx grammar — parser's contract
+    architecture.md         # design pillars, runtime model, quality contract
+    comparison.md           # ADX vs React/Vue/Svelte token analysis
+    human-guide.md          # human onboarding guide
+    token-efficiency.md     # token-cost analysis
+  .kiro/steering/           # steering files (this directory)
+  .agents/tasks/            # workflow run artifacts (plans, reviews)
 ```
 
-No source code exists yet. When implementation begins, follow the component conventions below.
+Build artifacts (`dist/`, `node_modules/`) are gitignored.
 
 ## Component conventions (from the design spec)
 

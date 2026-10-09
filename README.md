@@ -15,6 +15,16 @@
 
 ADX is a frontend framework built from the ground up for AI coding agents. It reduces token overhead by 60-80% compared to traditional frameworks while producing production-quality interfaces that never look "AI-generated" or incomplete.
 
+This repository **is** the ADX compiler — one npm package (`adx`). The framework (syntax, tokens, patterns) is defined and enforced by the compiler; the `docs/` explain it.
+
+## For AI Agents: Start Here
+
+1. `docs/agent-reference.md` — canonical, token-efficient reference: `.adx` syntax, design tokens, CLI, UX/SEO baselines.
+2. `docs/adx-grammar.md` — exact `.structure.adx` grammar (the parser's contract).
+3. `src/` — the compiler. Entry: `src/cli.ts` → `src/compile.ts`.
+4. `fixtures/user-card/` — a complete example component (the four `.adx` files).
+5. Build & run: see **Build & Compile** below. Everything runs from the repo root.
+
 ## Core Philosophy
 
 1. **Token-First**: Every syntax decision optimized for minimal token cost
@@ -53,11 +63,51 @@ component-name/
   └── manifest.json      # Component metadata & API
 ```
 
+## Build & Compile
+
+This repo **is** the ADX compiler — a single npm package (`adx`), TypeScript,
+Node >= 18. Everything runs from the repo root. Milestone 1 compiles a single
+component to static HTML + scoped CSS + a hydration-only glue script.
+
+Build it:
+
+```bash
+npm install
+npm run build        # tsc -> dist/
+npm test             # 77 Vitest tests
+npm run lint
+```
+
+Compile a component (the bundled UserCard fixture):
+
+```bash
+node dist/cli.js build fixtures/user-card --out dist
+# -> dist/user-card/{index.html, style.css, glue.js, behavior.js}
+```
+
+Validate without emitting files:
+
+```bash
+node dist/cli.js check fixtures/user-card    # prints "OK", exits 0; [ADX] error + exit 1 on failure
+```
+
+Once installed from npm (`npm install -g adx`), the same commands are available as
+`adx build ...` / `adx check ...`.
+
+Options: `--out <dir>` (default `dist`), `--tokens <path>` (default
+`tokens/design-tokens.json`). The output folder is the component directory's
+basename (e.g. `user-card`). Interpolations resolve at build time, so
+`index.html` contains the real content with zero `{{ }}` left — the SEO contract.
+
+> M1 scope: single-component `build`/`check` only. `dev`, `create`, `tokens`, and
+> `pattern` are planned. See the Development Roadmap below.
+
 ## Documentation
 
 - **For AI Agents**: Start with `docs/agent-reference.md`
 - **For Humans**: Start with `docs/human-guide.md`
 - **Architecture**: See `docs/architecture.md`
+- **Grammar**: See `docs/adx-grammar.md`
 - **Token Analysis**: See `docs/token-efficiency.md`
 
 ## Status

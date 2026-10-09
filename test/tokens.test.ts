@@ -5,10 +5,10 @@ import { dirname, join } from "node:path";
 import { loadTokens, parseTokens } from "../src/tokens/load.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const tokensPath = join(here, "..", "..", "tokens", "design-tokens.json");
+const tokensPath = join(here, "..", "tokens", "design-tokens.json");
 
 describe("token loader", () => {
-  it("loads the worktree-root design-tokens.json", () => {
+  it("loads the repo-root design-tokens.json", () => {
     const table = loadTokens(tokensPath);
     expect(table.resolve("tokens.space-4")).toBe("16px");
     expect(table.resolve("primary")).toBe("#1d4ed8");

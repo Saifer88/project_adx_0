@@ -3,8 +3,9 @@
  * ADX compiler CLI (Milestone 1): `adx build` and `adx check` only.
  *
  *   adx build <componentDir> [--out dist] [--tokens tokens/design-tokens.json]
- *       Compiles the component and writes dist/<name>/index.html, style.css,
- *       glue.js (lowercased component name as the output folder).
+ *       Compiles the component and writes <out>/<dir-basename>/index.html,
+ *       style.css, glue.js, behavior.js. The output folder is the component
+ *       directory's basename (e.g. `user-card`), not the manifest name.
  *
  *   adx check <componentDir> [--tokens ...]
  *       Validates + emits in-memory, writes nothing. Prints "OK" and exits 0 on

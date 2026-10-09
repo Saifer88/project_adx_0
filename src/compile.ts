@@ -28,9 +28,8 @@ import type { Manifest } from "./manifest/types.js";
 
 /** Options for {@link compileComponent}. */
 export interface CompileOptions {
-  /** Path to the design-tokens JSON. Defaults to `../tokens/design-tokens.json`
-   * relative to CWD so the CLI run from `compiler/` finds the worktree-root
-   * token file. */
+  /** Path to the design-tokens JSON. Defaults to `tokens/design-tokens.json`
+   * relative to CWD, i.e. the repo root where the token file lives. */
   tokensPath?: string;
 }
 
@@ -43,7 +42,7 @@ export interface CompiledComponent {
   manifest: Manifest;
 }
 
-const DEFAULT_TOKENS = "../tokens/design-tokens.json";
+const DEFAULT_TOKENS = "tokens/design-tokens.json";
 
 /** Compile a component directory into html/css/glue artifacts. */
 export function compileComponent(

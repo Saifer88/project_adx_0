@@ -1,7 +1,7 @@
 {
-  "name": "adx-compiler",
+  "name": "adx",
   "version": "0.1.0-alpha",
-  "description": "ADX compile-to-vanilla framework compiler (Milestone 1 front-end stages).",
+  "description": "ADX: a compile-to-vanilla frontend framework built for AI coding agents. Token-efficient, SEO-safe static-HTML output.",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -9,6 +9,11 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "tokens",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

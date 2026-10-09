@@ -404,7 +404,7 @@ ADX provides concise, actionable errors:
 
 Grammar/AST contract: see [docs/adx-grammar.md](./adx-grammar.md) (parser's source of truth).
 
-M1 compiler (`compiler/`) implements two commands; the rest are planned.
+M1 compiler (repo root, package `adx`) implements two commands; the rest are planned.
 
 ```bash
 # IMPLEMENTED (M1)

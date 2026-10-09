@@ -22,10 +22,10 @@ The result? Your AI pair programmer is 70% more efficient when working with ADX.
 ### Installation
 
 ```bash
-npm install -g adx-framework
-adx create my-app
+npm install -g adx
+adx create my-app   # planned (M1 ships build/check only — see CLI Commands below)
 cd my-app
-adx dev
+adx dev             # planned
 ```
 
 ### Project Structure
@@ -576,7 +576,7 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestone 1 ships two working commands (in `compiler/`); the rest are planned.
+Milestone 1 ships two working commands; the rest are planned.
 
 ```bash
 # Working today (M1)
@@ -601,13 +601,12 @@ its `setup`/`on<Event>` handlers.
 
 ### Compiling a component today
 
-The `adx` wrapper command is still coming, but the compiler itself already runs.
-From `compiler/`, build it once and point the CLI at a component directory. M1
-compiles one component at a time, and the bundled `user-card` fixture is the
-easiest thing to try:
+The global `adx` command arrives with the npm release; today you run the compiler
+straight from the repo root. Build it once, then point the CLI at a component
+directory. M1 compiles one component at a time, and the bundled `user-card`
+fixture is the easiest thing to try:
 
 ```bash
-cd compiler
 npm install        # first time only
 npm run build      # tsc -> dist/
 
