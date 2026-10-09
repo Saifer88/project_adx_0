@@ -367,6 +367,29 @@ toast.info('Info message')
 4. **Reference this doc** for syntax (don't guess abbreviations)
 5. **Emit minimal explanations** to user (code + 1 sentence)
 
+## UX/UI Baseline (always apply)
+
+Every component meets this baseline by default. Patterns carry it for free; raw components must honor it.
+
+```
+A11Y   decorative icons aria-hidden; meaningful icons get text alt; icon-only
+       controls get accessible name. Color never the only signal.
+       Contrast: text >=4.5:1, large/non-text >=3:1, both themes.
+       Fields: label + hint + inline error; multi-error -> focus summary.
+       Focus order = visual order, never obscured. Drag/swipe has key alt.
+       Respect reduced-motion + large text size.
+INTER  pressed/hover feedback 80-150ms via color/opacity/elevation (no layout
+       shift). Real disabled semantics. Semantic <button>/<a>, not <div>.
+LAYOUT space-* tokens for all rhythm; mobile-first with breakpoint-* tokens;
+       touch targets >=44px; readable text measure.
+VISUAL one icon family, consistent stroke/fill, token-sized; vector only, no
+       emoji icons; theme via surface-*/text-* tokens, no hardcoded hex.
+MOTION subtle default; exit faster than enter; gate non-essential behind
+       reduced-motion.
+```
+
+**Beyond the baseline** (design systems, palettes, fonts, charts, stack rules): invoke the `ui-ux-pro-max` skill — one dominant intent, 2-5 terms. Its output must still satisfy this baseline.
+
 ## Error Messages
 
 ADX provides concise, actionable errors:

@@ -256,6 +256,33 @@ Every component automatically gets:
 
 **Fail-Fast**: Builds fail if quality checks don't pass.
 
+### UX/UI Contract (enforced baseline)
+
+"Quality by Default" is a framework contract, not a suggestion. Every component meets this baseline — the compiler audit checks it, and agents follow it when generating code.
+
+**Accessibility (WCAG AA)**
+- Decorative icons hidden from assistive tech; meaningful icons get text alternatives; icon-only controls get accessible names.
+- Color is never the sole signal.
+- Contrast: body text >= 4.5:1; large text and non-text UI >= 3:1; verified in light and dark.
+- Form fields carry labels, hints, inline errors; multi-error forms focus an error summary on submit.
+- Focus order matches visual order and is never obscured; drag/swipe actions have keyboard alternatives.
+- Reduced-motion and large text-size settings never break layout.
+
+**Interaction**
+- Pressed/hover feedback within ~80-150ms via color/opacity/elevation, never a layout-shifting transform.
+- Real disabled semantics; one primary gesture per region; semantic primitives over generic containers.
+
+**Layout & spacing**
+- Token spacing scale (`space-*`) for all rhythm; consistent vertical hierarchy; readable text measure.
+- Mobile-first with `breakpoint-*` tokens; touch targets >= 44px.
+
+**Visual & motion**
+- One icon family, consistent stroke and fill discipline, token-sized; vector only, no emoji icons.
+- Semantic token theming (`surface-*`, `text-*`), never per-component hardcoded hex.
+- Motion is subtle by default, exits faster than it enters, and respects reduced-motion.
+
+Built-in patterns (form, modal, toast, table, nav, tabs) carry these guarantees so components inherit them for free.
+
 ---
 
 *Architecture designed for agents. Quality designed for humans.*
