@@ -91,8 +91,9 @@ Validate without emitting files:
 node dist/cli.js check fixtures/user-card    # prints "OK", exits 0; [ADX] error + exit 1 on failure
 ```
 
-Once installed from npm (`npm install -g adx`), the same commands are available as
-`adx build ...` / `adx check ...`.
+Once the package is published to npm (not yet — `0.1.0-alpha`), a global
+`npm install -g adx` will expose the same commands as `adx build ...` /
+`adx check ...`.
 
 Options: `--out <dir>` (default `dist`), `--tokens <path>` (default
 `tokens/design-tokens.json`). The output folder is the component directory's
@@ -128,7 +129,7 @@ basename (e.g. `user-card`). Interpolations resolve at build time, so
 | Pattern Library | ❌ Not Started | High |
 | CLI Tool | 🚧 In Progress (`adx build` + `adx check` landed; `dev`/`create`/`tokens`/`pattern` planned) | High |
 | Example Components | 🚧 In Progress (UserCard compiles end-to-end to HTML/CSS/glue) | Medium |
-| Build System | 🚧 In Progress (M1 `adx build` emits `dist/<name>/index.html|style.css|glue.js|behavior.js`) | High |
+| Build System | 🚧 In Progress (M1 `adx build` emits `index.html` + `style.css` + `glue.js` + `behavior.js` under `dist/<name>/`) | High |
 | Dev Server (Hot Reload) | ❌ Not Started | Medium |
 | Testing Framework | ❌ Not Started | Medium |
 | VS Code Extension | ❌ Not Started | Low |
