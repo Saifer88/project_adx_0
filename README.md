@@ -16,9 +16,15 @@
 ADX is a frontend framework built from the ground up for AI coding agents. It aims
 to cut the token overhead of reading and editing UI code while producing
 production-quality interfaces that never look "AI-generated" or incomplete. The
-first measured benchmark (`npm run benchmark`) shows ~13-14% fewer tokens than an
-equivalent React component on single-component tasks; the long-term 60-80% target
-assumes multi-component scale not yet measured.
+**design target is a 60-80% token reduction** across a full agent workflow at
+real-world scale.
+
+> **On the benchmark:** `npm run benchmark` is a narrow first measurement — it
+> counts only read-tokens on one small component and skips ADX's strongest cases
+> (manifest-only scanning, full edit-and-explain, multi-component apps). It shows
+> ~13-14% there. That slice does not test the 60-80% target and so neither proves
+> nor disproves it; the real-world figure is unmeasured pending a broader
+> benchmark. See [`docs/comparison.md`](docs/comparison.md).
 
 This repository **is** the ADX compiler — one npm package (`adx`). The framework (syntax, tokens, patterns) is defined and enforced by the compiler; the `docs/` explain it.
 

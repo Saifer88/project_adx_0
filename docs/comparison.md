@@ -4,6 +4,22 @@ Detailed comparison of ADX vs. React, Vue, and Svelte for AI agent efficiency.
 
 ## Measured (M2)
 
+> ⚠️ **Read this before the numbers.** This benchmark is a **narrow first
+> measurement, not an exhaustive or representative one.** It tokenizes a single
+> small component and counts only the tokens an agent spends **reading** files. It
+> deliberately does **not** cover ADX's strongest cases: manifest-only API
+> scanning, full modify-and-explain workflows (reasoning + writing + explaining),
+> or larger multi-component applications. On this one narrow slice ADX measures
+> **~13-14%** fewer tokens than React.
+>
+> **The 60-80% figure remains the design target** the framework is built to reach
+> across a complete agent workflow at real-world scale. It is a **hypothesis, not
+> yet proven** — and the ~13-14% here does **not** disprove it, because this
+> benchmark does not measure the workflow the target describes. The true figure
+> for real agent work is **unmeasured**; a broader benchmark is needed to settle
+> it (see `docs/roadmap.md`). Treat ~13-14% as "the floor we can already prove on
+> the least favorable task," not as the expected real-world result.
+
 The numbers in the rest of this document are **hand estimates, pre-measurement**.
 Milestone 2 added a reproducible benchmark — run `npm run benchmark` to regenerate
 `benchmark/results.json`. It tokenizes the real `user-card` ADX fixture against a
@@ -357,12 +373,14 @@ ADX is ideal for:
 
 ## Summary
 
-**Token Efficiency (measured, M2)**: ~13-14% reduction vs. an equivalent React
+**Token Efficiency**: 60-80% reduction is the **design target** across a full
+agent workflow at real-world scale — a hypothesis, not yet proven. The only
+measurement so far (M2) is ~13-14% reduction vs. an equivalent React
 component on the single-component understand / modify-style / add-prop tasks
-(`npm run benchmark`). The earlier headline "65-85% reduction vs. traditional
-frameworks" was a hand estimate and is **superseded** by the measured figure;
-larger savings are expected at multi-file / multi-component scale but are not yet
-measured.
+(`npm run benchmark`), which measures only read-tokens on one small component and
+excludes ADX's strongest cases. That narrow result neither proves nor disproves
+the target; a broader benchmark (manifest-scan-only, full edit-and-explain,
+multi-component) is needed before any headline number is treated as settled.
 
 **Quality**: Equal or better (patterns + enforcement)
 

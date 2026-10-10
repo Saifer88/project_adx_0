@@ -88,6 +88,21 @@ build tool.
 ### Sequencing — DECIDED: all phases in one milestone
 Build Phases 1-6 together as a single M2, rather than splitting into M2a/M2b.
 
+## Open: broaden the token benchmark (settle the headline claim)
+
+The M2 benchmark is narrow — it measures only read-tokens on one small component
+and so shows ~13-14%, far under the 60-80% design target. That slice does not test
+the workflow the target describes, so it neither proves nor disproves it. Since
+token efficiency is the project's entire reason to exist, the claim stays unsettled
+until the benchmark is broadened. Needed tasks:
+- **Manifest-scan-only**: read just `manifest.json` to learn the API vs. parsing
+  the full React component — ADX's strongest single case.
+- **Full modify-and-explain**: count reasoning + writing + explanation tokens, not
+  just reading, across a real edit (ADX's estimated wins were largest here).
+- **Larger / multi-component fixtures**: where React's per-file overhead compounds.
+Then update the docs with whichever figure the broadened benchmark actually shows —
+raising or lowering the claim to match the measurement, not the reverse.
+
 ## Later milestones (unscheduled)
 Pattern library, dev server + hot reload, `adx create`/`tokens`/`pattern` CLI,
 compile-time WCAG-AA audit, sitemap.xml/robots.txt generation, bundle-size
