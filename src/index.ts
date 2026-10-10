@@ -43,8 +43,15 @@ export type { RunSetupOptions, RunSetupResult } from "./behavior/run.js";
 
 export { scopeId, bindingId, instanceBindingId } from "./codegen/scope.js";
 export { HTML_TAGS, isHtmlTag } from "./codegen/html-tags.js";
-export { emitHtml } from "./codegen/html.js";
-export type { BindingHook, HtmlEmitResult, SlotContext } from "./codegen/html.js";
+export { emitHtml, lowerExpr, rootIdent } from "./codegen/html.js";
+export type {
+  BindingHook,
+  HtmlEmitResult,
+  SlotContext,
+  UpdateInstr,
+  SerExpr,
+  SerPart,
+} from "./codegen/html.js";
 export { transformCss } from "./codegen/css.js";
 export { emitGlue, emitComponentGlue } from "./codegen/glue.js";
 export { createBuild } from "./codegen/compose.js";

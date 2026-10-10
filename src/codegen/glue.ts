@@ -52,14 +52,17 @@ export function emitComponentGlue(
       ? `const HANDLERS = { ${handlers.map((h) => `${h}: ${h}`).join(", ")} };`
       : `const HANDLERS = {};`;
 
-  // Hooks are stored structurally (events + node index `n`); the loop rebuilds
-  // each hook's instance-scoped id from SCOPE + the instance ordinal + `n`.
+  // Hooks are stored structurally (events + updates + node index `n`); the loop
+  // rebuilds each hook's instance-scoped id from SCOPE + the ordinal + `n`. A
+  // hook with no events AND no updates carries nothing to wire or patch, so it
+  // is dropped from the emitted array.
   const hooksJson = JSON.stringify(
     c.hooks
-      .filter((h) => h.events.length > 0)
+      .filter((h) => h.events.length > 0 || h.updates.length > 0)
       .map((h) => ({
         n: h.n,
         events: h.events,
+        updates: h.updates,
       })),
     null,
     2,
@@ -84,8 +87,8 @@ const COMPONENT = ${JSON.stringify(c.componentName)};
 // instance's browser setup() reproduces its own build-time state.
 const INSTANCES = ${instancesJson};
 
-// This component's hooked nodes (events + node index). The id of a node for an
-// instance "iK" is SCOPE + "-" + "iK" + "-" + n.
+// This component's hooked nodes (events + update instructions + node index).
+// The id of a node for an instance "iK" is SCOPE + "-" + "iK" + "-" + n.
 const HOOKS = ${hooksJson};
 
 ${handlersMap}
@@ -141,11 +144,52 @@ for (const inst of INSTANCES) {
   }
 }
 
-// Shared pure patch helper (updates arrive in FEAT-004).
-function applyUpdate(el, update, state) {
-  void el;
-  void update;
-  void state;
+// --- Shared pure patch helpers (no reference to any instance's state/root) ---
+
+// Coerce a value to text, mirroring the build-time emitter: null/undefined -> "".
+function toText(value) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+// Resolve a serialized expression against the single state object. Mirrors
+// src/expr/evaluate.ts's ident/member walk, but over \`state\` only (the glue
+// re-runs neither setup nor get*; loop locals are build-time only).
+function evalExpr(e, state) {
+  if ("ident" in e) {
+    return state == null ? undefined : state[e.ident];
+  }
+  const object = evalExpr(e.member, state);
+  if (object === null || object === undefined) return undefined;
+  return object[e.prop];
+}
+
+// Set an attribute, or REMOVE it when the value is null/undefined (mirroring
+// the build-time "omit attribute on null/undefined" rule).
+function setOrRemoveAttr(el, name, value) {
+  if (value === null || value === undefined) el.removeAttribute(name);
+  else el.setAttribute(name, toText(value));
+}
+
+// Join a serialized template's literal + expression parts into one string.
+function joinParts(parts, state) {
+  let out = "";
+  for (const p of parts) {
+    out += "lit" in p ? p.lit : toText(evalExpr(p.expr, state));
+  }
+  return out;
+}
+
+// Apply one compiled update instruction to a hooked element.
+function applyUpdate(el, u, state) {
+  if (u.kind === "text") {
+    el.textContent = toText(evalExpr(u.expr, state));
+  } else if (u.kind === "attr") {
+    setOrRemoveAttr(el, u.name, evalExpr(u.expr, state));
+  } else if (u.kind === "textTemplate") {
+    el.textContent = joinParts(u.parts, state);
+  } else if (u.kind === "attrTemplate") {
+    el.setAttribute(u.name, joinParts(u.parts, state));
+  }
 }
 
 export { state, props };

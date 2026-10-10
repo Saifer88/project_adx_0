@@ -30,13 +30,34 @@ import type {
   TextNode,
   TextPart,
   Binding,
+  Expr,
 } from "../structure/ast.js";
 import type { EvalScope } from "../expr/evaluate.js";
 import { evaluate, truthy, toText } from "../expr/evaluate.js";
 import { VOID_ELEMENTS } from "../structure/tokenizer.js";
 import { instanceBindingId } from "./scope.js";
 import { isHtmlTag } from "./html-tags.js";
+import { bareComputedKey } from "../behavior/compute-key.js";
 import type { CodegenContext, BuildState, EmitParent } from "./context.js";
+
+/**
+ * A JSON-serializable expression the glue re-evaluates at runtime: a bare
+ * identifier or a member-access chain. A 1:1 lowering of the AST {@link Expr}.
+ */
+export type SerExpr = { ident: string } | { member: SerExpr; prop: string };
+
+/** A piece of a serialized template run: literal text or an expression hole. */
+export type SerPart = { lit: string } | { expr: SerExpr };
+
+/**
+ * A single build-time-compiled instruction the glue applies on `rerender`:
+ * patch a hooked node's attribute or single text run from the current `state`.
+ */
+export type UpdateInstr =
+  | { kind: "attr"; name: string; expr: SerExpr }
+  | { kind: "text"; expr: SerExpr }
+  | { kind: "attrTemplate"; name: string; parts: SerPart[] }
+  | { kind: "textTemplate"; parts: SerPart[] };
 
 /** A node that carries runtime bindings/events, recorded for the glue. */
 export interface BindingHook {
@@ -49,6 +70,26 @@ export interface BindingHook {
   events: Array<{ event: string; handler: string }>;
   /** Binding names that resolve at build time but may re-run on hydration. */
   bindings: string[];
+  /**
+   * Build-time-compiled patch instructions. On `rerender` the glue re-applies
+   * each against the instance's `state`. Computed-backed (`get*`) runs are
+   * FROZEN at lowering time and emit NO instruction, so they keep their
+   * build-time value and are never blanked.
+   */
+  updates: UpdateInstr[];
+}
+
+/** Lower an AST {@link Expr} to its JSON-serializable {@link SerExpr} form. */
+export function lowerExpr(expr: Expr): SerExpr {
+  if (expr.kind === "ident") {
+    return { ident: expr.name };
+  }
+  return { member: lowerExpr(expr.object), prop: expr.property };
+}
+
+/** The base identifier of a {@link SerExpr}, unwrapping any member chain. */
+export function rootIdent(e: SerExpr): string {
+  return "ident" in e ? e.ident : rootIdent(e.member);
 }
 
 /** Result of HTML emission: the markup plus the ordered binding hooks. */
@@ -74,6 +115,12 @@ export interface EmitState {
   ctx: CodegenContext;
   bindingCount: number;
   hooks: BindingHook[];
+  /**
+   * Bare computed names (`getDisplayName` -> `displayName`) built once per
+   * emit from `ctx.behavior.computed` (reusing the Phase 1 helper). A run whose
+   * expression's ROOT ident is in this set is FROZEN — no UpdateInstr emitted.
+   */
+  computedKeys: Set<string>;
   /** The page-global build accumulator (composition/dedupe); optional for the
    * direct-emit path used by unit tests. */
   build?: BuildState;
@@ -88,7 +135,14 @@ export function emitHtml(
   build?: BuildState,
   slots?: SlotContext,
 ): HtmlEmitResult {
-  const state: EmitState = { ctx, bindingCount: 0, hooks: [], build, slots };
+  const state: EmitState = {
+    ctx,
+    bindingCount: 0,
+    hooks: [],
+    computedKeys: new Set(ctx.behavior.computed.map(bareComputedKey)),
+    build,
+    slots,
+  };
   // Top-level owned elements of this instance get `data-adx-i`.
   const out = emitSiblings(ast, ctx.scope, state, true);
   return { html: out.join(""), hooks: state.hooks };
@@ -178,7 +232,7 @@ function emitElementMaybeFor(
 ): string[] {
   const loop = node.directives.for;
   if (!loop) {
-    return [emitElement(node, scope, state, topLevel)];
+    return [emitElement(node, scope, state, topLevel, false)];
   }
   const iterable = evaluate(loop.iterable, scope);
   if (!Array.isArray(iterable)) {
@@ -194,7 +248,9 @@ function emitElementMaybeFor(
       ...scope,
       locals: [frame, ...(scope.locals ?? [])],
     };
-    out.push(emitElement(node, childScope, state, topLevel));
+    // Unrolled `:for` nodes get events-only hooks — their text/attrs are
+    // build-time frozen and never live-patched (no structural reactivity).
+    out.push(emitElement(node, childScope, state, topLevel, true));
   });
   return out;
 }
@@ -205,12 +261,13 @@ function emitElement(
   scope: EvalScope,
   state: EmitState,
   topLevel: boolean,
+  loopLocal: boolean,
 ): string {
   // Custom component tag (not a known HTML element, not a slot) -> compose.
   if (!isHtmlTag(node.tag) && node.tag !== "slot") {
     if (!state.build) {
       // No build context (direct unit-test emit): emit verbatim as M1 did.
-      return emitPlainElement(node, scope, state, topLevel);
+      return emitPlainElement(node, scope, state, topLevel, loopLocal);
     }
     return state.build.compose(
       node,
@@ -219,7 +276,7 @@ function emitElement(
       makeEmitParent(state),
     );
   }
-  return emitPlainElement(node, scope, state, topLevel);
+  return emitPlainElement(node, scope, state, topLevel, loopLocal);
 }
 
 /** Emit a plain HTML element with scope/instance/binding attributes. */
@@ -228,6 +285,7 @@ function emitPlainElement(
   scope: EvalScope,
   state: EmitState,
   topLevel: boolean,
+  loopLocal: boolean,
 ): string {
   const attrs: string[] = [];
 
@@ -260,18 +318,31 @@ function emitPlainElement(
     attrs.push(`data-adx-i="i${state.ctx.instanceIndex}"`);
   }
 
-  // Binding hook: nodes that have bindings or events get a stable hook the glue
-  // selects by. (:for/:if are build-time only and do not need a hook unless the
-  // node also has bindings/events.)
-  if (node.bindings.length > 0 || node.events.length > 0) {
+  // Binding hook (MEDIUM-5): a hook is emitted when a node has bindings OR
+  // events OR a single interpolated text run (its children are exactly one
+  // TextNode carrying >=1 {{expr}} part — the dominant <h2>{{name}}</h2> case).
+  // One hook carries the node's events AND its update instructions (attr
+  // updates from :prop bindings plus a text/textTemplate update from the single
+  // text run). `:for`-unrolled nodes (loopLocal=true) are events-only: their
+  // text/attributes are build-time frozen and never live-patched.
+  const textRun = singleInterpolatedTextRun(node);
+  if (
+    node.bindings.length > 0 ||
+    node.events.length > 0 ||
+    textRun !== null
+  ) {
     const n = state.bindingCount++;
     const id = instanceBindingId(state.ctx.scopeId, state.ctx.instanceIndex, n);
     attrs.push(`data-adx-b="${id}"`);
+    const updates = loopLocal
+      ? []
+      : buildUpdates(node.bindings, textRun, state.computedKeys);
     state.hooks.push({
       id,
       n,
       events: node.events.map((e) => ({ event: e.name, handler: e.handler })),
       bindings: node.bindings.map((b) => b.name),
+      updates,
     });
   }
 
@@ -346,6 +417,106 @@ function resolveTemplate(parts: TextPart[], scope: EvalScope): string {
     out += "lit" in part ? part.lit : toText(evaluate(part.expr, scope));
   }
   return out;
+}
+
+/**
+ * Return the element's single interpolated text run — the parts of its one
+ * `TextNode` child — when its children are exactly one `TextNode` carrying at
+ * least one `{{expr}}` part (the dominant `<h2>{{name}}</h2>` case). Otherwise
+ * `null` (no children, multiple children, element children mixed in, or a
+ * pure-literal text node, which needs no update). This is the only text shape
+ * M2 live-patches; a node mixing interpolation with child elements is left
+ * build-time correct but not patched.
+ */
+function singleInterpolatedTextRun(node: ElementNode): TextPart[] | null {
+  if (node.children.length !== 1) return null;
+  const only = node.children[0];
+  if (only.kind !== "text") return null;
+  const hasHole = only.parts.some((p) => "expr" in p);
+  return hasHole ? only.parts : null;
+}
+
+/**
+ * Build the per-hook update plan: an attr update per `:prop` binding plus one
+ * text update for a single interpolated text run. The freeze rule (HIGH-1) is
+ * applied uniformly — a run whose expression's ROOT ident is a computed name is
+ * frozen (no UpdateInstr), so computed-backed content keeps its build-time
+ * value and is never blanked on `rerender`.
+ */
+function buildUpdates(
+  bindings: Binding[],
+  textRun: TextPart[] | null,
+  computedKeys: Set<string>,
+): UpdateInstr[] {
+  const updates: UpdateInstr[] = [];
+
+  for (const binding of bindings) {
+    const instr = attrUpdate(binding, computedKeys);
+    if (instr) updates.push(instr);
+  }
+
+  if (textRun) {
+    const instr = textUpdate(textRun, computedKeys);
+    if (instr) updates.push(instr);
+  }
+
+  return updates;
+}
+
+/** `true` iff the serialized expression's root ident is a computed name. */
+function isFrozen(e: SerExpr, computedKeys: Set<string>): boolean {
+  return computedKeys.has(rootIdent(e));
+}
+
+/** Lower a `:prop` binding to an attr/attrTemplate update, or null if frozen. */
+function attrUpdate(
+  binding: Binding,
+  computedKeys: Set<string>,
+): UpdateInstr | null {
+  if (binding.template) {
+    const parts = binding.template;
+    // Freeze the whole attr if ANY expr part's root ident is computed.
+    if (
+      parts.some((p) => "expr" in p && isFrozen(lowerExpr(p.expr), computedKeys))
+    ) {
+      return null;
+    }
+    return {
+      kind: "attrTemplate",
+      name: binding.name,
+      parts: parts.map(lowerPart),
+    };
+  }
+  if (binding.expr) {
+    const expr = lowerExpr(binding.expr);
+    if (isFrozen(expr, computedKeys)) return null;
+    return { kind: "attr", name: binding.name, expr };
+  }
+  return null;
+}
+
+/** Lower a single text run to a text/textTemplate update, or null if frozen. */
+function textUpdate(
+  parts: TextPart[],
+  computedKeys: Set<string>,
+): UpdateInstr | null {
+  // Freeze the whole run if ANY expr part's root ident is computed.
+  if (
+    parts.some((p) => "expr" in p && isFrozen(lowerExpr(p.expr), computedKeys))
+  ) {
+    return null;
+  }
+  // A single bare `{{expr}}` with no literal parts becomes a `text` update;
+  // otherwise a `textTemplate` preserving the literal interleaving.
+  if (parts.length === 1 && "expr" in parts[0]) {
+    return { kind: "text", expr: lowerExpr(parts[0].expr) };
+  }
+  return { kind: "textTemplate", parts: parts.map(lowerPart) };
+}
+
+/** Lower an AST {@link TextPart} to its serialized {@link SerPart} form. */
+function lowerPart(part: TextPart): SerPart {
+  return "lit" in part ? { lit: part.lit } : { expr: lowerExpr(part.expr) };
 }
 
 /** Escape text content for safe HTML emission (static output). */
