@@ -1,8 +1,11 @@
 # ADX Structure Grammar (`.structure.adx`)
 
-Status: **spec for the Milestone 1 parser**. This pins the exact `.structure.adx`
-syntax the compiler parses into an AST. Behavior (`.behavior.adx.js`) and style
-(`.style.adx.css`) have their own rules; this file covers structure only.
+Status: **spec for the shipped parser (through Milestone 2)**. This pins the exact
+`.structure.adx` syntax the compiler parses into an AST. Behavior
+(`.behavior.adx.js`) and style (`.style.adx.css`) have their own rules; this file
+covers structure only. The parser itself is unchanged since M1 — M2 added
+component composition and slot projection in the HTML emitter (§11), not in the
+grammar, so every construct below already parses.
 
 Design goals (in order): minimal token cost, trivial for an AI to read/emit,
 unambiguous to parse, and SEO-safe (resolves to complete static HTML at build time).
@@ -23,7 +26,9 @@ Comments: `<!-- ... -->` are recognized and dropped (not emitted).
 
 Tag names: `[a-zA-Z][a-zA-Z0-9-]*`. Lowercase HTML elements (`div`, `h2`, `img`,
 `article`, …) and custom component tags (`user-card`) are both valid; the parser
-does not distinguish them — resolution of custom components is a later milestone.
+does not distinguish them. Resolution of custom component tags against
+`manifest.deps` happens later in the pipeline (the HTML emitter, not the parser)
+— see §11 Component composition.
 
 ## 2. Attributes
 
@@ -126,11 +131,30 @@ rendered; surviving iterations resolve their bindings in the loop scope.
 `:else` pairs by sibling at the source level, not per iteration.
 
 Scope resolution for an expression walks inner-to-outer: loop variables of
-enclosing `:for` elements first, then the `setup()` state object, then
-`props`. An identifier that resolves nowhere evaluates to `undefined` and, for
-`:if`, is treated as falsy; for interpolation it emits the empty string. The
-build does not throw on unknown identifiers in M1 (keeps authoring forgiving),
-but `adx check` MAY report them as warnings.
+enclosing `:for` elements first, then the `setup()` state object, then `props`,
+then **computed values** (keyed by their bare name — see below). An identifier
+that resolves nowhere evaluates to `undefined` and, for `:if`, is treated as
+falsy; for interpolation it emits the empty string. The build does not throw on
+unknown identifiers (keeps authoring forgiving), but `adx check` MAY report them
+as warnings.
+
+**`get*` → bare computed-key lowering (pinned, byte-for-byte).** A `behavior`
+export named `get<Name>` is exposed to expressions under a **bare key** derived by
+exactly this rule: strip the leading `get` (always three characters — the scanner
+only classifies `get` followed by an uppercase letter), then **lowercase only the
+first remaining character** and leave every subsequent character untouched.
+
+```
+getDisplayName → displayName
+getURL         → uRL        # acronym case: only char 0 is lowercased
+getX           → x
+```
+
+This is a deliberate single-char lowering, **not** a camelCase smart-split, so
+the acronym case is `getURL → uRL` (the rest of `URL` is preserved verbatim). The
+same helper (`bareComputedKey`) that builds the build-time computed scope also
+builds the reactivity freeze set, so the two agree for every input. In an
+expression you therefore write `{{displayName}}`, never `{{getDisplayName}}`.
 
 ## 5. Expressions (build-time)
 
@@ -140,29 +164,41 @@ examples, no more:
 - Identifiers: `name`, `items`.
 - Member access: `item.id`, `user.profile.name`.
 - Indexing is **not** supported in M1 (`a[b]`), nor function calls, nor
-  arithmetic/logical operators. `getXxx(state)` computed values are referenced by
+  arithmetic/logical operators. `get*(state)` computed values are referenced by
   their **bare computed name** (`displayName` resolves to `getDisplayName`'s
-  result) — see behavior rules. This keeps the evaluator a safe property walker,
-  not a JS `eval`.
+  result; `uRL` to `getURL`'s — the exact lowering is pinned in §4.3). This keeps
+  the evaluator a safe property walker, not a JS `eval`.
 - String templates in attribute values interleave literal text with the above
   expressions via `{{ }}`.
 
 Anything outside this grammar is an error at parse time:
 `[ADX] structure.adx:<line> - Unsupported expression "<raw>"`.
 
-## 6. Slots — `<slot name />`
+## 6. Slots — declaration side (`<slot name />`)
+
+A slot is the **declaration** of a hole a parent may fill. The projection side
+(how a parent fills it) is §11.2.
 
 - `<slot />` — the default slot.
-- `<slot actions />` — a **named** slot `actions`. The name is the first bare
+- `<slot actions />` — a **named** slot `actions`. The name is the first **bare**
   token after `slot`.
+- `<slot name="actions" />` is **NOT valid** — `name="actions"` is a *valued*
+  attribute, and a slot may only carry a bare name plus class shorthands, so this
+  errors: `[ADX] structure.adx:<line> - Slot may only carry a name and class shorthands`.
+  Use `<slot actions />`.
 - Slots are always self-closing; `<slot>...</slot>` is an error.
-- A slot element MAY also carry class shorthands which become the wrapper's
-  classes when the compiler emits slot markup (M1 emits a `<slot>` placeholder
-  element with a `data-adx-slot="<name>"` hook; actual content projection across
-  components is a later milestone, but the hook and name must be parsed and
-  recorded now).
+- A slot element MAY also carry class shorthands.
 - Duplicate slot names in one component are an error:
   `[ADX] structure.adx:<line> - Duplicate slot "actions"`.
+
+**Build-time placeholder (standalone compilation only).** When a component is
+compiled on its own (`adx build <dir>`), each `<slot>` emits a
+`<slot data-adx-slot="<name>" …></slot>` placeholder in the HTML — there is no
+parent to fill it. When the component is **composed** (resolved as a child under a
+parent via §11), the emitter replaces each slot position with the parent's
+projected content and the `data-adx-slot` placeholder does **not** appear. Slot
+projection is entirely a **build-time** operation: the resolved content is baked
+into the static HTML, so a crawler sees it with no JavaScript.
 
 ## 7. Nesting and well-formedness
 
@@ -205,6 +241,26 @@ when the whole value is one hole, or the parser lowers a mixed template into a
 synthesized concatenation represented as a `TextPart[]` carried on the binding
 (implementer's choice, but it MUST round-trip to the correct emitted string).
 
+## 8a. Hydration attributes the emitter stamps
+
+The parser produces the AST above; the HTML emitter then stamps hydration
+attributes onto the output. These are **not** authored in `.structure.adx` — they
+are documented here because they are part of the structural contract the glue
+relies on:
+
+- `data-adx-c="<scopeId>"` on every element a component owns. The `scopeId`
+  groups a component's CSS and is **shared** by all instances of that component on
+  a page (it is the CSS-isolation key).
+- `data-adx-i="i<ordinal>"` on each **instance root**. Because `data-adx-c` is
+  shared, this per-instance ordinal is what distinguishes one instance of a
+  component from another when the same component appears multiple times on a page.
+  The pair `[data-adx-c="<scope>"][data-adx-i="i<k>"]` uniquely selects instance
+  `k`'s root.
+- `data-adx-b="<scopeId>-i<ordinal>-<n>"` on each bound/evented/interpolated node
+  — the **three-part hook id**: scope, instance ordinal, then the per-instance
+  node index `n`. A standalone single-component build has exactly one instance, so
+  its ids are `<scope>-i0-<n>`.
+
 ## 9. Error format (must match exactly)
 
 All structure errors use: `[ADX] structure.adx:<line> - <message>`.
@@ -238,7 +294,83 @@ conditional `ul` whose single `li` child carries a `:for` with `item="t"`,
 with state `{ name:"Ada", role:"Eng", bio:"", avatar:"/a.png", tags:[...] }`, the
 emitter produces complete HTML with `{{...}}` resolved, the `:if="bio"` paragraph
 omitted (empty string is falsy only if explicitly empty — note: `""` is falsy),
-and a `data-adx-slot="actions"` placeholder.
+and (in a standalone build) a `data-adx-slot="actions"` placeholder.
+
+## 11. Component composition
+
+A component embeds another by using the dependency's tag. Resolution and
+projection happen in the HTML emitter at build time — the grammar/parser is
+unchanged.
+
+### 11.1 Custom-tag resolution against `manifest.deps`
+
+When the emitter meets an element whose tag is **not** a known HTML element and
+is not `slot`, it resolves the tag against the using component's `manifest.deps`:
+
+- A dep-resolution table is built once per component. For each entry in
+  `manifest.deps` (a relative path to a component directory, resolved relative to
+  the using component's own directory), the dep's `manifest.json` is loaded and
+  indexed by two keys: the kebab-case of its `manifest.name`, and the dep
+  directory's basename. A tag matching either key resolves to that dep.
+- A tag that is neither a known HTML element nor a resolvable dep is a fatal
+  error: `[ADX] structure.adx:<line> - Unknown component "<tag>" (not an HTML element; add to manifest deps)`.
+- A `manifest.deps` entry that is missing or does not point at a component
+  directory: `[ADX] manifest.json - Dependency not found: "<dep>"`.
+- A dependency cycle (a component that transitively depends on itself) is a fatal
+  error naming the chain: `[ADX] structure.adx:<line> - Dependency cycle: a -> b -> a`.
+
+### 11.2 Prop passing and slot projection (parent side)
+
+A parent passes props and projects content:
+
+```adx
+<user-card :name="author.name" role="Founder">
+  <template slot="actions">
+    <button @click="onFollow">Follow</button>
+  </template>
+</user-card>
+```
+
+- `:prop="expr"` bindings and plain `attr="literal"` attributes on the custom tag
+  are evaluated **against the parent's scope** to produce the child's props, then
+  the child is required-prop-validated and compiled recursively with them.
+- `@event="handler"` on a custom tag wires the parent's handler to the child's
+  emitted event (the child root dispatches a bubbling `CustomEvent`).
+- **Named-slot projection** uses `<template slot="name">…</template>`. The
+  canonical projection form is the plain attribute `slot="name"`.
+- **Default-slot content** is any direct child that is not a `<template slot="…">`
+  — a bare `<template>` (no `slot` attribute) or any non-`template` element
+  projects into the child's default `<slot />`. Whitespace-only text between
+  templates is ignored. A self-closing custom element (`<user-card … />`) projects
+  nothing, so the child's slots render empty.
+- Projection errors (both fatal): two templates targeting the same named slot →
+  `[ADX] structure.adx:<line> - Duplicate slot content for "actions"` (line = the
+  second template); projecting into a slot the child did not declare →
+  `[ADX] structure.adx:<line> - Component "<tag>" has no slot "actions"`.
+
+`#name` is reserved **planned sugar** for `slot="name"`. Note it is already
+**parseable today** — `splitAttributes` imposes no charset on plain attribute
+names, so `<template #actions>` tokenizes and parses right now; M2 simply picks
+`slot="name"` as the single canonical spelling and does not yet wire `#name`. No
+parser change is required to add it later.
+
+### 11.3 Ownership of projected nodes
+
+Projected slot content is **parent-owned** for CSS and hydration: it carries the
+**parent's** `data-adx-c` (scope), the **parent's** `data-adx-i` instance ordinal,
+and the parent's instance-scoped hook ids. Only its DOM *position* is inside the
+child. So `{{parentState}}` inside projected content resolves against the parent's
+state and any `@event` there is wired by the parent's glue; the child's glue never
+touches projected nodes.
+
+### 11.4 Per-instance identity
+
+When a component appears N times, each occurrence is an independent instance: its
+own merged props, its own `setup(props) → state`, its own root, and its own
+event/`emit`/patch routing. The emitter stamps a distinct `data-adx-i="i<ordinal>"`
+on each instance root and emits instance-scoped three-part hook ids
+`<scope>-i<ordinal>-<n>` (§8a). The CSS is emitted once per component (shared
+`data-adx-c`); the body is emitted N times.
 
 ---
 

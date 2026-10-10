@@ -14,6 +14,14 @@ Every architectural decision must answer: "Does this reduce token consumption fo
 
 **Target**: 60-80% reduction vs React/Vue for equivalent functionality.
 
+**Measured (M2)**: the reproducible benchmark (`npm run benchmark`,
+`gpt-tokenizer` o200k_base) shows ~13-14% on single-component understand /
+modify-style / add-prop tasks against a faithful minimal React equivalent — well
+below the aspirational target. The gap is expected to widen at multi-file /
+multi-component scale (manifest scanning, built-in patterns), which this
+single-component fixture does not capture. See `docs/token-efficiency.md` and
+`docs/comparison.md` for the measured table and the honest claim.
+
 ### 2. Flat Structure (No Nesting)
 
 ```
@@ -245,34 +253,75 @@ ADX compiles to vanilla JavaScript:
 - Optimized DOM operations
 - No virtual DOM overhead
 
-**Milestone 1 (implemented).** `adx build <dir>` emits four files per component
-into `dist/<name>/`:
+**Milestone 1 + 2 (implemented).** `adx build <dir>` emits four files per
+component into `dist/<name>/`; `adx build <page.json>` composes several components
+into one `index.html` per crawlable URL. The per-component output:
 
 - `index.html` — a complete static document. The HTML emitter resolves every
   `{{interpolation}}` and `:prop` binding at build time, applies `:if`/`:else`
-  (falsy branches are omitted) and unrolls `:for`, and renders `<slot>` as a
-  `data-adx-slot="<name>"` placeholder. Elements the component owns carry a
-  deterministic `data-adx-c="<scopeId>"`; nodes with bindings/events also carry a
-  stable `data-adx-b="<scopeId>-<n>"` hook. **Zero `{{` remain** — this is the
-  SEO contract (a crawler that never runs JS sees the full content).
+  (falsy branches are omitted) and unrolls `:for`, and projects slot content (a
+  standalone build leaves a `data-adx-slot="<name>"` placeholder; a composed child
+  gets the parent's projected content baked in). Elements the component owns carry
+  a deterministic `data-adx-c="<scopeId>"`; each instance root carries
+  `data-adx-i="i<ordinal>"`; nodes with bindings/events/interpolation also carry a
+  stable three-part `data-adx-b="<scopeId>-i<ordinal>-<n>"` hook. **Zero `{{`
+  remain** — this is the SEO contract (a crawler that never runs JS sees the full
+  content).
 - `style.css` — the CSS transform strips `@use tokens;`, expands abbreviated
   properties, resolves every `tokens.*` to its design-token value, scopes each
   selector by attaching `[data-adx-c="<id>"]`, and passes `@media` through with
   `tokens.breakpoint-*` resolved to px. An unknown token fails the build with
   `[ADX] style.adx.css:<line> - Unknown token "..." (available: ...)`.
-- `glue.js` — a **hydration-only** ES module (no shared runtime, no vDOM). It
-  imports the behavior exports from `./behavior.js`, calls `setup(props)` once,
-  selects the existing DOM by `data-adx-c`/`data-adx-b`, and attaches each
-  `@event` to its handler. It contains no `createElement`: content lives in the
-  HTML; the glue only wires interactivity.
+- `glue.js` — a **hydration-only, per-instance** ES module (no shared runtime, no
+  vDOM). It imports the behavior exports from `./behavior.js` and loops over an
+  `INSTANCES` array: for each instance it builds its own `setup(props) → state`,
+  locates its root by `data-adx-c`+`data-adx-i`, wires each `@event` to its
+  handler, and — on handler return — patches only that instance's hooked
+  text/attributes. It contains no `createElement`: content lives in the HTML; the
+  glue only wires interactivity and patches in place.
 - `behavior.js` — the component's `behavior.adx.js` copied verbatim (it is
   already plain ES-module JS). The glue imports `setup`/`on<Event>` from this
-  file, so emitting it alongside the glue makes the hydration import resolve in
-  the browser. The compiler only *scans* this source at build time; it never
-  executes it.
+  file. At build time the compiler **name-scans** this source to wire handlers and
+  **executes** `setup()` (and any referenced `get*()`) in a sandbox to compute the
+  state it bakes into the HTML (see Build-time execution below).
 
-`scopeId` is deterministic (`c` + first 7 hex of `sha256(name \0 dirBasename)`),
-so repeated builds of the same component are byte-stable.
+`scopeId` is deterministic (`c` + first 7 hex of `sha256(name \0 location)`), so
+repeated builds are byte-stable. `location` is the directory basename for a
+single-component build (M1-stable) and the repo-relative POSIX path for page and
+composed children, so two deps with the same basename in different folders never
+collide.
+
+### Build-time execution of `setup()` (sandboxed)
+
+To emit *real* content (not just manifest defaults), the compiler must know each
+component's state, which comes from the user's `setup()`. M2 runs it at build time
+inside a Node `vm` context seeded with a minimal, frozen set of globals (`Object`,
+`Array`, `Math`, `JSON`, `Date`, …) and **nothing else** — no `require`, `module`,
+`process`, `fetch`, `Buffer`, timers, or `node:` builtins — under a 1000ms
+timeout. Normal `setup()` logic works; a dangerous call fails with a
+`ReferenceError` because the global is simply absent. The browser glue re-runs the
+**same merged props** through `setup()`, so the hydrated DOM matches the crawled
+HTML (a non-deterministic `setup()` is the author's responsibility).
+
+**Compiling runs user code — security note.** Running `adx build` executes the
+component's `setup()` on the build machine. The `vm` sandbox **narrows** this
+(ambient capabilities are removed) but does **not** eliminate the trust boundary:
+Node documents `vm` as not a hardened security sandbox (prototype/`constructor`
+escapes to the host realm are possible for a determined attacker). So compiling an
+untrusted third-party component carries the same caution as running any untrusted
+build tool. If stronger isolation is ever required, a child-process or worker
+boundary is the upgrade path (not in M2).
+
+### Reactivity (patch model, no vDOM)
+
+When a handler returns, the glue re-evaluates and patches **only** the affected
+hooked nodes' text/attributes for **that instance** — no vDOM, no full re-render,
+no `setup()` re-run. The model is deliberately bounded in M2: no structural
+reactivity (`:if`/`:else`/`:for` are build-time only); computed-backed
+interpolations (`{{displayName}}` from a `getDisplayName`) are frozen at their
+build-time value and never live-patched; only `state`/`props`/loop-local
+references update. The first patch after hydration is a no-op for a deterministic
+`setup()`.
 
 ## Quality Enforcement
 

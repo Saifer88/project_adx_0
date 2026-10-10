@@ -404,12 +404,16 @@ ADX provides concise, actionable errors:
 
 Grammar/AST contract: see [docs/adx-grammar.md](./adx-grammar.md) (parser's source of truth).
 
-M1 compiler (repo root, package `adx`) implements two commands; the rest are planned.
+Compiler (repo root, package `adx`). M2 adds `--data`, page builds, composition,
+reactivity, and a measured benchmark on top of M1's single-component build.
 
 ```bash
-# IMPLEMENTED (M1)
-adx build <dir> [--out dist] [--tokens <path>]  # emit dist/<name>/index.html|style.css|glue.js|behavior.js
-adx check <dir> [--tokens <path>]               # validate+emit in-memory; prints OK or [ADX] error
+# IMPLEMENTED (M1 + M2)
+adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # single component -> dist/<name>/
+adx build <page.json> [--out dist] [--tokens <path>]                  # page -> dist/[<slug>/]index.html
+adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component in-memory
+adx check <page.json> [--tokens <path>]                               # validate every page instance
+npm run benchmark                                                     # measured token comparison (dev-only)
 
 # PLANNED
 adx dev                # Dev server with hot reload
@@ -417,26 +421,139 @@ adx tokens             # List all available tokens
 adx create / pattern   # Scaffolding
 ```
 
-Build output per component (M1):
+Build output per component:
 
 - `index.html` — complete static HTML; every `{{...}}`/`:prop` resolved at build
-  time, `:if`/`:else`/`:for` applied, `<slot>` -> `data-adx-slot` placeholder.
-  Owned elements carry `data-adx-c="<scopeId>"`; bound/event nodes also carry a
-  stable `data-adx-b="<scopeId>-<n>"` hook. Zero `{{` remain (SEO contract).
+  time, `:if`/`:else`/`:for` applied, slots projected (standalone build leaves a
+  `<slot data-adx-slot>` placeholder; a composed child's slot is filled). Owned
+  elements carry `data-adx-c="<scopeId>"`; each instance root carries
+  `data-adx-i="i<ordinal>"`; bound/event/interpolated nodes carry a stable
+  three-part hook `data-adx-b="<scopeId>-i<ordinal>-<n>"`. Zero `{{` remain (SEO
+  contract).
 - `style.css` — `@use tokens;` stripped, abbreviated props expanded
   (`pad`→padding, `bg`→background, `radius`→border-radius, `size`→font-size,
   `weight`→font-weight, `shadow`→box-shadow, …), every `tokens.*` resolved, each
   selector scoped as `<sel>[data-adx-c="<id>"]`, `@media` passed through with
   `tokens.breakpoint-*` resolved to px.
 - `glue.js` — hydration-only ES module: imports behavior exports from
-  `./behavior.js`, calls `setup(props)` once, selects existing DOM by
-  `data-adx-c`/`data-adx-b`, wires each `@event` to its handler `(state, event)`.
+  `./behavior.js`, loops over an `INSTANCES` array (one record per instance of the
+  component on the page), and for **each** instance builds its own
+  `setup(props) → state`, selects its root by `data-adx-c`+`data-adx-i`, wires
+  each `@event` to its handler `(state, event)`, and patches that instance only.
   No vDOM, no `createElement`.
 - `behavior.js` — `behavior.adx.js` copied verbatim (plain ESM); the glue's
-  import target. Scanned at build time, never executed.
+  import target. Its exports are name-scanned at build time (for handler wiring),
+  and `setup()`/`get*()` are **executed in a hardened sandbox** at build time to
+  compute real state (see Build-time `setup()` below).
 
-`scopeId` is deterministic: `c` + first 7 hex of `sha256(name \0 dirBasename)`.
+`scopeId` is deterministic: `c` + first 7 hex of `sha256(name \0 location)`. For a
+single-component build `location` is the directory basename (M1-stable); for page
+and composed children it is the repo-relative POSIX path, so same-basename deps in
+different folders never collide.
+
+## Data binding — `--data <file.json>`
+
+`--data` points at a JSON file whose top-level object is the props for a
+single-component build, e.g. `{"name":"Ada Lovelace","role":"Engineer"}`. Props
+are a three-layer merge: manifest `default`s, overlaid by `--data` (data wins per
+key), then **required-prop validation**. A required prop with neither a default
+nor a supplied value fails:
+
+```
+[ADX] manifest.json - Missing required prop "name" (no default and none supplied via --data)
+```
+
+Because `check` runs the same path, `adx check <dir>` without `--data` on a
+component that has a required prop with no default now **fails** (by design — it
+surfaces the SEO-breaking empty element). Check such a child via a page that uses
+it, or pass sample `--data`.
+
+### Build-time `setup()` (sandboxed)
+
+To bake real content into the HTML, the compiler runs the component's `setup()`
+(and any referenced `get*()`) at build time inside a Node `vm` sandbox: no
+`require`/`module`/`process`/`fetch`/`Buffer`/timers and no `node:` builtins, with
+a 1000ms timeout. Normal logic works; a dangerous call fails because the global is
+absent. The browser glue re-runs the **same** merged props through `setup()`, so
+first paint equals the crawled HTML. Caveats: a non-deterministic `setup()` (e.g.
+`Date.now()`) can differ between build and first paint; `import` statements in
+behavior files are unsupported. **Security:** the sandbox narrows but does not
+*eliminate* trust — compiling an untrusted component is like running any untrusted
+build tool (see architecture).
+
+Failure messages (all line-less, on `behavior.adx.js`):
+`setup() failed: <message>`, `setup() exceeded time budget (1000ms)`,
+`Missing required export "setup"`.
+
+## Pages — `adx build <page.json>`
+
+A page is a flat JSON manifest that composes components into one crawlable
+`index.html` per URL. Dispatch is strict: a `.json` positional arg → page build; a
+directory with `manifest.json` → component build; else
+`[ADX] <path> - Not a component directory or page manifest`.
+
+```json
+{
+  "page": "about",
+  "title": "About us",
+  "description": "Who we are and what ADX is.",
+  "lang": "en",
+  "canonical": "/about/",
+  "schema": "AboutPage",
+  "components": [
+    { "use": "./components/site-header", "data": { "current": "about" } },
+    { "use": "./components/user-card",   "data": { "name": "Ada Lovelace", "role": "Founder" } }
+  ]
+}
+```
+
+Field rules: `page` (required slug, `^[a-z0-9]+(?:-[a-z0-9]+)*$`; `index`/`home` →
+root `/index.html`, else `<out>/<page>/index.html`), `title` + `description`
+(required, drive `<title>`/meta/OG/Twitter), `lang` (default `en`), `canonical`
+(default `/` for root else `/<page>/`), `schema` (optional schema.org `@type`;
+emits JSON-LD `{"@context":"https://schema.org","@type":<schema>,"name":<title>}`),
+`components` (required, non-empty; each `use` points at a component directory
+relative to the page file — never another page). Each instance's `data` is the
+same shape as a `--data` file and is required-prop-validated with the page branch
+hint (`… no value in the page's component data`). Assets live beside the page
+(`about/style.css`, `about/glue.js`, `about/<comp>.behavior.js`).
+
+Per-page SEO comes from the page manifest. A standalone `adx build <dir>` keeps
+M1-fixed SEO (`<html lang="en">`, root canonical); per-component SEO overrides are
+a later milestone.
+
+## Composition
+
+Resolve a custom tag against the using component's `manifest.deps`; pass props
+with `:prop`/plain attrs (evaluated against the parent scope); project content
+with `<template slot="name">`. See grammar §11 for the full rules, error strings,
+and ownership of projected nodes. Key points:
+
+- `<slot actions />` declares a slot (child); `<slot name="actions"/>` is invalid.
+- `<template slot="actions">` projects (parent); bare/non-template children →
+  default slot. `#name` is planned sugar, parseable today, not yet wired.
+- Projected nodes are **parent-owned** (parent `data-adx-c`/`data-adx-i`/hooks).
+- The same component used N times → N independent instances, each with its own
+  `data-adx-i`, hook ids, state, root, and event/emit/patch routing.
+- A standalone `adx build <dir>` composes children into one component's output;
+  full per-child behavior/glue sidecars are emitted on the **page** path.
+
+## Reactivity contract
+
+On a handler's return, the glue re-evaluates and patches **only** the affected
+hooked nodes' text/attributes for **that instance** — no vDOM, no full re-render,
+no `setup()` re-run. Limits (by design in M2):
+
+- **No structural reactivity.** `:if`/`:else`/`:for` are build-time only; adding
+  or removing nodes at runtime is not supported.
+- **Computed-backed interpolations are not live-patched.** A run whose root
+  identifier is a `get*` computed value (`{{displayName}}`, `{{displayName.foo}}`,
+  `:src="displayName.url"`, or any mixed run containing one) is frozen at its
+  build-time value — never blanked, never updated. Only `state`/`props`/loop-local
+  refs live-patch.
+- `:for`-unrolled nodes get events-only hooks (text/attrs frozen).
+- The first patch after hydration is a no-op for a deterministic `setup()`.
 
 ---
 
-*This reference is optimized for agent context windows. Token count: ~2,400*
+*This reference is optimized for agent context windows.*

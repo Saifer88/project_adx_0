@@ -15,7 +15,11 @@ This means:
 - Patterns are built-in (less for AI to generate)
 - Documentation is exhaustive (optimized for AI context windows)
 
-The result? Your AI pair programmer is 70% more efficient when working with ADX.
+The result? Your AI pair programmer reads and edits ADX with fewer tokens. On the
+measured single-component tasks the saving is about 13-14% versus an equivalent
+React component (run `npm run benchmark` to reproduce); the larger figures you may
+have seen were hand estimates. See `docs/token-efficiency.md` for the measured
+numbers and where bigger savings are expected to come from.
 
 ## Quick Start
 
@@ -178,12 +182,16 @@ export function onFollowClick(state) {
   :role="Senior Engineer"
   @click="handleClick"
   @follow="handleFollow">
-  <template #actions>
+  <template slot="actions">
     <button @click="onFollowClick">Follow</button>
     <button>Message</button>
   </template>
 </user-card>
 ```
+
+> **Projecting into a slot** uses the plain `slot="name"` attribute, as above.
+> The shorthand `#actions` is planned sugar — it already *parses* today, but M2
+> wires only the `slot="name"` form, so use that for now.
 
 ## Understanding ADX Syntax
 
@@ -251,17 +259,22 @@ ADX uses a compact HTML-like syntax:
 
 <!-- Use slot -->
 <my-component>
-  <template #header>
+  <template slot="header">
     <h1>Title</h1>
   </template>
   
   <p>Default content</p>
   
-  <template #footer>
+  <template slot="footer">
     <p>Footer</p>
   </template>
 </my-component>
 ```
+
+Project named-slot content with `<template slot="name">`. Anything that isn't a
+`<template slot="…">` — a bare paragraph, or a `<template>` with no `slot` — fills
+the default `<slot />`. (`#name` is reserved sugar for `slot="name"`, parseable
+today but not yet wired, so prefer `slot="name"`.)
 
 ### Behavior Files (`.behavior.adx.js`)
 
@@ -576,12 +589,15 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestone 1 ships two working commands; the rest are planned.
+Milestones 1 and 2 ship the build/check commands below; the rest are planned.
 
 ```bash
-# Working today (M1)
-adx build <dir> [--out dist] [--tokens <path>]  # compile a component to static HTML + CSS + glue
-adx check <dir> [--tokens <path>]               # validate a component (prints OK, or an [ADX] error)
+# Working today (M1 + M2)
+adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
+adx build <page.json> [--out dist] [--tokens <path>]                  # compile a page (composes components) to one index.html
+adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component (prints OK, or an [ADX] error)
+adx check <page.json> [--tokens <path>]                               # validate every component instance on a page
+npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
 
 # Planned
 adx create <name>      # Create new project
@@ -591,36 +607,131 @@ adx pattern <name>     # Generate pattern component
 adx help               # Show help
 ```
 
+### Giving your component real data
+
+A component with a required prop (like `user-card`'s `name`) needs a value to put
+in the HTML. Pass one with `--data`, pointing at a JSON file of props:
+
+```bash
+echo '{ "name": "Ada Lovelace", "role": "Founder" }' > data.json
+node dist/cli.js build fixtures/user-card --data data.json --out dist
+```
+
+Behind the scenes the compiler runs your component's `setup()` once, at build
+time, in a locked-down sandbox (no file system, no network, no `process`, with a
+timeout), so the real state lands in the static HTML. Without data, a required
+prop that has no default now fails the build with a clear
+`[ADX] manifest.json - Missing required prop "name" (...)` — no more silent empty
+headings.
+
 What `adx build` produces for each component: a complete `index.html` (all
 `{{...}}` already filled in, so search engines and AI crawlers see the real
 content without running any JavaScript), a scoped `style.css` with your design
 tokens resolved to real values, a tiny `glue.js` that only *attaches*
 interactivity to the HTML that's already there (it never rebuilds the page), and
 a `behavior.js` — your `behavior.adx.js` copied as-is — that the glue imports for
-its `setup`/`on<Event>` handlers.
+its `setup`/`on<Event>` handlers. The compiler name-scans those exports to wire
+handlers, and it *runs* `setup()` (and any `get*()` it needs) at build time inside
+the sandbox described above to compute the state it bakes into the HTML.
 
 ### Compiling a component today
 
 The global `adx` command arrives with the npm release; today you run the compiler
 straight from the repo root. Build it once, then point the CLI at a component
-directory. M1 compiles one component at a time, and the bundled `user-card`
-fixture is the easiest thing to try:
+directory (one component at a time) or a page manifest (which composes several).
+The bundled `user-card` fixture is the easiest thing to try — it has a required
+`name`, so give it data:
 
 ```bash
 npm install        # first time only
 npm run build      # tsc -> dist/
 
+echo '{ "name": "Ada Lovelace" }' > /tmp/user-card.json
+
 # Compile the fixture to dist/user-card/{index.html,style.css,glue.js,behavior.js}
-node dist/cli.js build fixtures/user-card --out dist
+node dist/cli.js build fixtures/user-card --data /tmp/user-card.json --out dist
 
 # Validate without writing files (prints OK, or an [ADX] error)
-node dist/cli.js check fixtures/user-card
+node dist/cli.js check fixtures/user-card --data /tmp/user-card.json
 ```
 
+> Running `check` (or `build`) on `user-card` **without** `--data` now fails on
+> purpose: `name` is required and has no default, so there is nothing to put in
+> `<h2>`. That is the point of build-time data — it turns a silent empty heading
+> into a clear error.
+
 Open `dist/user-card/index.html` and you'll see the real content already in the
-markup — no `{{name}}` placeholders left for the browser to fill in. That's the
-SEO contract working: a crawler that never runs JavaScript still sees the whole
-component.
+markup — `<h2>Ada Lovelace</h2>`, no `{{name}}` placeholder left for the browser
+to fill in. That's the SEO contract working: a crawler that never runs JavaScript
+still sees the whole component.
+
+### A small 2-page site from composed components
+
+M2 can build a whole site, not just one component. The shape: a shared
+`site-header`, a `user-card`, and two page manifests (`index` and `about`) that
+compose them with per-page data. The bundled `fixtures/site/` is exactly this.
+
+A page manifest is a flat JSON file listing the components it uses and their data:
+
+```json
+// fixtures/site/index.json
+{
+  "page": "index",
+  "title": "ADX Demo — Home",
+  "description": "The home page of the ADX two-page demo site.",
+  "lang": "en",
+  "schema": "WebPage",
+  "components": [
+    { "use": "./site-header", "data": { "siteName": "ADX Demo", "current": "home" } },
+    { "use": "../user-card",  "data": { "name": "Ada Lovelace", "role": "Founder", "bio": "First programmer." } }
+  ]
+}
+```
+
+```json
+// fixtures/site/about.json
+{
+  "page": "about",
+  "title": "About us",
+  "description": "Who we are and what ADX is.",
+  "lang": "en",
+  "canonical": "/about/",
+  "schema": "AboutPage",
+  "components": [
+    { "use": "./site-header", "data": { "siteName": "ADX Demo", "current": "about" } },
+    { "use": "../user-card",  "data": { "name": "Grace Hopper", "role": "Advisor", "bio": "Compiler pioneer." } }
+  ]
+}
+```
+
+The `site-header` component declares a default slot, and a page (or a parent
+component) can project content into it with `<template slot="…">`; `user-card`
+declares a named `actions` slot the same way. Each `data` block fills that
+instance's props — the same shape as a `--data` file.
+
+Build both pages:
+
+```bash
+node dist/cli.js build fixtures/site/index.json --out dist
+node dist/cli.js build fixtures/site/about.json --out dist
+```
+
+You get `dist/index.html` and `dist/about/index.html` (clean URLs: `/` and
+`/about/`), each a complete document with its own `<title>`, meta description, and
+canonical URL, the real content already in the markup, and — for `about` — a
+JSON-LD block typed `AboutPage`. Each page's `style.css`/`glue.js` sit beside it.
+If the same component appears more than once on a page, each copy hydrates
+independently (its own state, its own events).
+
+Validate a page the same way:
+
+```bash
+node dist/cli.js check fixtures/site/about.json
+```
+
+`check` on a page validates every instance's required props, so it fails with the
+child's `[ADX] manifest.json - Missing required prop ...` if any instance is
+missing data.
 
 ## Configuration
 

@@ -10,14 +10,14 @@ hydration-only glue. Build/time interpolation (zero `{{ }}` in output, the SEO
 contract), design-token system, `adx build` / `adx check` CLI, 77 tests. Single
 npm package `adx` at the repo root.
 
-## Next — Milestone 2 (make it usable for real sites + prove the claim)
+## Shipped — Milestone 2 (usable for real sites + the claim measured)
 
-Goal: move from "compiles one demo component with default data" to "an agent can
-build a real, crawlable multi-page site" — and back the token-efficiency claim
-with measured numbers. Each item below came from reviewing M1 as the end user
-(an AI agent) would.
+Goal (met): move from "compiles one demo component with default data" to "an agent
+can build a real, crawlable multi-page site" — and back the token-efficiency claim
+with measured numbers. All six phases landed in one milestone. Each item below
+came from reviewing M1 as the end user (an AI agent) would.
 
-### 1. Real data binding ❌ (highest priority)
+### 1. Real data binding ✅ (highest priority)
 Today a component renders from manifest **defaults only**, so a required prop with
 no default emits an empty element (e.g. `<h2></h2>`). This contradicts the SEO
 promise. M2 adds a data source so real values fill the HTML at build time.
@@ -27,37 +27,44 @@ promise. M2 adds a data source so real values fill the HTML at build time.
 - Required-prop validation: error (documented `[ADX] ...` format) when a required
   prop has neither a default nor supplied data — no more silent empty headings.
 
-### 2. Pages (compile more than one component) ❌
+### 2. Pages (compile more than one component) ✅
 A page concept that emits one complete `index.html` per page under a clean,
 crawlable URL (`pages/about/` → `/about/index.html`).
 - **Decided: page format is a JSON page manifest** — lists the components a page
   uses plus their data. Token-cheap, trivial for an agent to emit, consistent
   with the API-driven pillar.
 
-### 3. Component composition ❌
-One component uses another: resolve custom tags (`<user-card :name="...">`)
-against `manifest.deps`, project parent content into child slots (wire the
-`data-adx-slot` placeholders M1 already parses), pass props parent→child, keep
-scoped CSS isolated. Detect dependency cycles with a clear error.
+### 3. Component composition ✅
+One component uses another: custom tags (`<user-card :name="...">`) resolve
+against `manifest.deps`, parent content projects into child slots
+(`<template slot="name">` on the parent, `<slot name />` on the child), props pass
+parent→child, and scoped CSS stays isolated via repo-relative child scope ids.
+Dependency cycles fail with a clear error. The same component used N times
+hydrates per-instance (`data-adx-i`, three-part hook ids).
 
-### 4. Reactivity semantics ❌
-Define exactly what updates when a handler mutates state. Minimal, explicit model:
-on handler return, re-evaluate only the bindings of affected nodes and patch
-text/attributes directly — no virtual DOM, consistent with the hydration-only
-runtime. Document the guarantee and its limits.
+### 4. Reactivity semantics ✅
+On handler return, the glue re-evaluates and patches only the affected nodes'
+text/attributes for that instance — no virtual DOM, no `setup()` re-run,
+consistent with the hydration-only runtime. Limits are documented and enforced: no
+structural reactivity, and computed-backed (`get*`) interpolations are frozen at
+their build-time value.
 
-### 5. Measured token benchmark ❌
-Replace the hand-estimated figures in `docs/comparison.md` with real numbers from
-an actual tokenizer, comparing ADX source vs. an equivalent React implementation
-across understand / modify / add-prop tasks. Ship a reproducible `benchmark/` +
-`npm run benchmark`. Update the docs with the measured result honestly — if it is
-below the advertised 60-80%, adjust the claim rather than the measurement.
+### 5. Measured token benchmark ✅
+Replaced the hand-estimated figures with real numbers from a reproducible
+`benchmark/` + `npm run benchmark` (`gpt-tokenizer`, o200k_base), comparing the
+ADX fixture vs. a faithful minimal React equivalent across understand /
+modify-style / add-prop. Measured savings are ~13-14% — below the advertised
+60-80%, so the **claim** was adjusted to the measured range (not the measurement),
+with the estimates kept and labelled. See `docs/comparison.md` /
+`docs/token-efficiency.md`.
 
-### 6. Documentation sync ❌
-Grammar (component resolution + slot projection move from "later milestone" to
-spec'd), agent-reference (`--data`, page build, composition, reactivity, benchmark
-command), human-guide (worked example: a small 2-page site from 2 composed
-components with real data), README roadmap rows.
+### 6. Documentation sync ✅
+Grammar (component resolution + slot projection now specified, with the pinned
+`get*`→bare-key rule), agent-reference (`--data`, page build, composition,
+reactivity, `npm run benchmark`), human-guide (worked 2-page composed-site
+example; sandboxed `setup()` described), architecture (build-time sandbox +
+reactivity + security note), comparison / token-efficiency (Measured table),
+roadmap + README rows — all updated in this milestone.
 
 ### How `setup()` runs at build time — DECIDED: sandboxed execution
 To emit real content the compiler must obtain each component's state, which comes

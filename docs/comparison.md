@@ -2,6 +2,33 @@
 
 Detailed comparison of ADX vs. React, Vue, and Svelte for AI agent efficiency.
 
+## Measured (M2)
+
+The numbers in the rest of this document are **hand estimates, pre-measurement**.
+Milestone 2 added a reproducible benchmark — run `npm run benchmark` to regenerate
+`benchmark/results.json`. It tokenizes the real `user-card` ADX fixture against a
+faithful, minimal React equivalent (same DOM/text, props, and styling surface)
+using `gpt-tokenizer` with the **o200k_base** encoder. Savings =
+`(react - adx) / react`.
+
+| Task | ADX tokens | React tokens | Savings |
+|------|-----------:|-------------:|--------:|
+| Understand the component (read full source) | 542 | 627 | 13.6% |
+| Modify a style (read only the style file) | 254 | 293 | 13.3% |
+| Add a prop (read the files it touches) | 288 | 334 | 13.8% |
+
+Per file (o200k_base): ADX `manifest.json` 115, `structure.adx` 83,
+`behavior.adx.js` 90, `style.adx.css` 254; React `UserCard.tsx` 334,
+`UserCard.module.css` 293.
+
+**Honest reading of the result.** The measured ~13-14% is well below the
+hand-estimated headline "65-85% reduction" below. The equivalence rule forces a
+faithful *minimal* React single-component equivalent (one `.tsx` + one CSS
+module), so the gap is modest at single-component scale; the larger estimated
+gains assume the multi-file / multi-component React overhead this fixture does not
+exercise. The estimates below are retained for context but are explicitly **not**
+measurements.
+
 ## Test Scenario
 
 **Task**: Build a todo list application with:
@@ -12,7 +39,11 @@ Detailed comparison of ADX vs. React, Vue, and Svelte for AI agent efficiency.
 - Responsive design
 - Accessibility compliant
 
-## Token Analysis
+## Token Analysis (estimated, pre-measurement)
+
+> The figures in this section and the per-task savings below (73% / 81% / 86% /
+> 95%) are hand estimates from before the benchmark existed. For measured numbers
+> see **Measured (M2)** above.
 
 ### React Implementation
 
@@ -326,7 +357,12 @@ ADX is ideal for:
 
 ## Summary
 
-**Token Efficiency**: 65-85% reduction vs. traditional frameworks
+**Token Efficiency (measured, M2)**: ~13-14% reduction vs. an equivalent React
+component on the single-component understand / modify-style / add-prop tasks
+(`npm run benchmark`). The earlier headline "65-85% reduction vs. traditional
+frameworks" was a hand estimate and is **superseded** by the measured figure;
+larger savings are expected at multi-file / multi-component scale but are not yet
+measured.
 
 **Quality**: Equal or better (patterns + enforcement)
 
@@ -338,4 +374,6 @@ ADX is ideal for:
 
 ---
 
-*Numbers based on GPT-4 tokenization of real-world component implementations*
+*Measured numbers come from `npm run benchmark` (gpt-tokenizer, o200k_base). The
+detailed per-task figures elsewhere in this document are hand estimates predating
+that benchmark.*

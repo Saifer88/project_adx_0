@@ -1,0 +1,14 @@
+{
+  "task_id": "task-adx-m2",
+  "task_description": "Implement ADX Milestone 2 across all six phases from the approved design (.agents/tasks/m2-design.md): real data binding with a sandboxed setup(); JSON page manifests compiling to one crawlable index.html per page; component composition with per-instance hydration identity, slot projection, and CSS isolation; an explicit no-vDOM reactivity patch contract with computed-backed freezing; a measured gpt-tokenizer benchmark; and documentation sync. Keep all 77 M1 tests green and the SEO static-first contract intact.",
+  "status": "completed",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003",
+    "FEAT-004",
+    "FEAT-005",
+    "FEAT-006"
+  ],
+  "blocked_reason": null
+}

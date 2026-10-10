@@ -10,7 +10,27 @@ AI agents consume tokens when:
 
 ADX optimizes all four phases.
 
-## Comparative Analysis
+## Measured (M2)
+
+Everything below the next heading is **estimated, pre-measurement**. Milestone 2
+shipped a reproducible benchmark (`npm run benchmark`) that tokenizes the real
+`user-card` fixture against a faithful minimal React equivalent with
+`gpt-tokenizer` (o200k_base encoder). Measured savings
+(`(react - adx) / react`):
+
+| Task | ADX tokens | React tokens | Savings |
+|------|-----------:|-------------:|--------:|
+| Understand (read full source) | 542 | 627 | 13.6% |
+| Modify a style | 254 | 293 | 13.3% |
+| Add a prop | 288 | 334 | 13.8% |
+
+So the honest, measured figure for a single component is ~13-14% — not the ~70%
+estimated below. The estimates assume multi-file / multi-component React overhead
+that a minimal one-component fixture does not exercise; the measured number is
+what the benchmark actually shows today. Reproduce it any time with
+`npm run benchmark`; the raw output is `benchmark/results.json`.
+
+## Comparative Analysis (estimated, pre-measurement)
 
 ### Scenario: Create a User Card Component
 
@@ -169,7 +189,7 @@ export function onClick(state) {
 
 **Total: ~480 tokens**
 
-### Token Savings: 70% reduction
+### Token Savings: ~70% reduction (estimated — measured is ~13-14%, see Measured (M2) above)
 
 ## Why ADX is More Efficient
 
@@ -372,11 +392,14 @@ Based on GPT-4 pricing (example rates):
 
 ## Measurement Methodology
 
-Token counts measured using:
-- OpenAI's tiktoken (GPT-4 tokenizer)
-- Real codebase samples (React, Vue, Svelte vs ADX)
-- 50 common component modification tasks
-- 20 component creation tasks
+**Measured (M2):** `npm run benchmark` tokenizes the committed `user-card` ADX
+fixture and a faithful minimal React equivalent with `gpt-tokenizer` (o200k_base
+encoder) across three tasks (understand / modify-style / add-prop) and writes
+`benchmark/results.json`. See **Measured (M2)** at the top for the result.
+
+**Estimates (older sections):** the larger per-task figures throughout this
+document were hand counts predating the benchmark; they are kept for context but
+are not measurements.
 
 Savings calculated as:
 ```
