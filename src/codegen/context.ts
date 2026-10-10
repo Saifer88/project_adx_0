@@ -25,4 +25,10 @@ export interface CodegenContext {
   behavior: BehaviorApi;
   /** The validated manifest. */
   manifest: Manifest;
+  /**
+   * The merged props (manifest defaults ⊕ `--data`/page data) the HTML was
+   * built from. The glue bakes this exact object so the browser's
+   * `setup(props)` reproduces the build-time state (hydration parity).
+   */
+  mergedProps: Record<string, unknown>;
 }

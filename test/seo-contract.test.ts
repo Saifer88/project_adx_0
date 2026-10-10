@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { compileComponent } from "../src/compile.js";
 import { fixtureDir, tokensPath } from "./helpers.js";
 
-const opts = { tokensPath };
+// The fixture `name` prop is required with no default; supply it via `data`.
+const opts = { tokensPath, data: { name: "Ada Lovelace" } };
 
 describe("SEO contract — emitted HTML is crawlable without JS", () => {
   const { html } = compileComponent(fixtureDir, opts);
@@ -11,6 +12,8 @@ describe("SEO contract — emitted HTML is crawlable without JS", () => {
     expect(html).not.toContain("{{");
     // role default "User" is resolved into the markup.
     expect(html).toContain(">User<");
+    // The required `name` is resolved into a non-empty <h2>.
+    expect(html).toMatch(/<h2[^>]*>Ada Lovelace<\/h2>/);
   });
 
   it("emits required metadata and lang", () => {

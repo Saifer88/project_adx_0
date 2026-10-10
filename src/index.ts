@@ -35,8 +35,11 @@ export type { Manifest, PropDef, PropType, SeoMeta } from "./manifest/types.js";
 export { loadTokens, parseTokens } from "./tokens/load.js";
 export type { TokenTable, RawTokens } from "./tokens/types.js";
 
-export { scanBehavior } from "./behavior/scan.js";
+export { scanBehavior, EXPORT_RE } from "./behavior/scan.js";
 export type { BehaviorApi } from "./behavior/types.js";
+export { bareComputedKey } from "./behavior/compute-key.js";
+export { runSetup } from "./behavior/run.js";
+export type { RunSetupOptions, RunSetupResult } from "./behavior/run.js";
 
 export { scopeId, bindingId } from "./codegen/scope.js";
 export { emitHtml } from "./codegen/html.js";
@@ -45,5 +48,9 @@ export { transformCss } from "./codegen/css.js";
 export { emitGlue } from "./codegen/glue.js";
 export type { CodegenContext } from "./codegen/context.js";
 
-export { compileComponent, checkComponent } from "./compile.js";
-export type { CompileOptions, CompiledComponent } from "./compile.js";
+export { compileComponent, checkComponent, resolveProps } from "./compile.js";
+export type {
+  CompileOptions,
+  CompiledComponent,
+  PropSource,
+} from "./compile.js";

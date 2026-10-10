@@ -54,5 +54,6 @@ export function makeCtx(
     tokens: tokens(),
     behavior: scanBehavior(behaviorSrc, "behavior.adx.js"),
     manifest,
+    mergedProps: state,
   };
 }

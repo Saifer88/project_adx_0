@@ -17,11 +17,13 @@ import { join, basename, resolve } from "node:path";
 import { loadManifest } from "./manifest/load.js";
 import { parseStructure } from "./structure/parser.js";
 import { scanBehavior } from "./behavior/scan.js";
+import { runSetup } from "./behavior/run.js";
 import { loadTokens } from "./tokens/load.js";
 import { emitHtml } from "./codegen/html.js";
 import { transformCss } from "./codegen/css.js";
 import { emitGlue } from "./codegen/glue.js";
 import { scopeId } from "./codegen/scope.js";
+import { adxFileError } from "./errors.js";
 import type { CodegenContext } from "./codegen/context.js";
 import type { EvalScope } from "./expr/evaluate.js";
 import type { Manifest } from "./manifest/types.js";
@@ -31,7 +33,12 @@ export interface CompileOptions {
   /** Path to the design-tokens JSON. Defaults to `tokens/design-tokens.json`
    * relative to CWD, i.e. the repo root where the token file lives. */
   tokensPath?: string;
+  /** Parsed `--data` JSON: the props object overlaid on manifest defaults. */
+  data?: Record<string, unknown>;
 }
+
+/** Where a component's props come from — selects the required-prop hint. */
+export type PropSource = "standalone" | "page" | "composed";
 
 /** The three emitted artifacts for a component. */
 export interface CompiledComponent {
@@ -62,8 +69,11 @@ export function compileComponent(
   const tokensPath = resolve(opts.tokensPath ?? DEFAULT_TOKENS);
   const tokens = loadTokens(tokensPath);
 
-  const buildProps = defaultProps(manifest);
-  const scope: EvalScope = { state: buildProps, props: buildProps };
+  // Three-layer merge (manifest defaults <- data) + required-prop validation,
+  // then run setup() in the sandbox to compute true build-time state.
+  const mergedProps = resolveProps(manifest, opts.data, "standalone");
+  const { state, computed } = runSetup(behaviorSrc, mergedProps, behavior);
+  const scope: EvalScope = { state, props: mergedProps, computed };
 
   const ctx: CodegenContext = {
     componentName: manifest.name,
@@ -72,6 +82,7 @@ export function compileComponent(
     tokens,
     behavior,
     manifest,
+    mergedProps,
   };
 
   const { html, hooks } = emitHtml(ast, ctx);
@@ -95,6 +106,55 @@ function defaultProps(manifest: Manifest): Record<string, unknown> {
     }
   }
   return props;
+}
+
+/**
+ * Resolve the effective props for a component instance.
+ *
+ * Three-layer merge: manifest defaults, overlaid by supplied `data` (shallow,
+ * data wins per key). Then required-prop validation: every manifest prop marked
+ * `required` must have an own value (a default or a supplied one), else a
+ * line-less manifest error whose parenthetical hint is branched by `source`.
+ * The stem `Missing required prop "<name>" (no default and ...` is identical
+ * across sources so tests can assert the stem and the branch independently.
+ */
+export function resolveProps(
+  manifest: Manifest,
+  data: Record<string, unknown> | undefined,
+  source: PropSource,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = defaultProps(manifest);
+  if (data) {
+    for (const [key, value] of Object.entries(data)) {
+      merged[key] = value;
+    }
+  }
+
+  for (const [name, def] of Object.entries(manifest.props)) {
+    if (
+      def.required &&
+      !Object.prototype.hasOwnProperty.call(merged, name)
+    ) {
+      throw adxFileError(
+        "manifest.json",
+        `Missing required prop "${name}" (${requiredHint(source)})`,
+      );
+    }
+  }
+
+  return merged;
+}
+
+/** The source-specific parenthetical for a missing required prop. */
+function requiredHint(source: PropSource): string {
+  switch (source) {
+    case "standalone":
+      return "no default and none supplied via --data";
+    case "page":
+      return "no default and no value in the page's component data";
+    case "composed":
+      return "no default and no value passed by the parent";
+  }
 }
 
 /**

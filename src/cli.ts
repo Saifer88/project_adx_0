@@ -23,6 +23,7 @@ interface ParsedArgs {
   dir: string | undefined;
   out: string;
   tokens: string | undefined;
+  data: string | undefined;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -32,6 +33,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     dir: undefined,
     out: "dist",
     tokens: undefined,
+    data: undefined,
   };
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -39,6 +41,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.out = rest[++i] ?? parsed.out;
     } else if (arg === "--tokens") {
       parsed.tokens = rest[++i];
+    } else if (arg === "--data") {
+      parsed.data = rest[++i];
     } else if (!arg.startsWith("--") && parsed.dir === undefined) {
       parsed.dir = arg;
     }
@@ -46,11 +50,32 @@ function parseArgs(argv: string[]): ParsedArgs {
   return parsed;
 }
 
+/** Read + parse a `--data` JSON file into a props object, or throw a fatal
+ * CLI-level `[ADX] <file> - …` error. */
+function loadData(path: string): Record<string, unknown> {
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    throw new Error(`[ADX] ${path} - Cannot read data file`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`[ADX] ${path} - Invalid JSON`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`[ADX] ${path} - Data must be a JSON object of props`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
 function usage(): string {
   return [
     "Usage:",
-    "  adx build <componentDir> [--out dist] [--tokens <path>]",
-    "  adx check <componentDir> [--tokens <path>]",
+    "  adx build <componentDir> [--out dist] [--tokens <path>] [--data <file.json>]",
+    "  adx check <componentDir> [--tokens <path>] [--data <file.json>]",
   ].join("\n");
 }
 
@@ -66,9 +91,15 @@ function run(argv: string[]): number {
     return 1;
   }
 
-  const opts = args.tokens ? { tokensPath: args.tokens } : {};
-
   try {
+    const opts: { tokensPath?: string; data?: Record<string, unknown> } = {};
+    if (args.tokens) {
+      opts.tokensPath = args.tokens;
+    }
+    if (args.data) {
+      opts.data = loadData(args.data);
+    }
+
     if (args.command === "check") {
       checkComponent(args.dir, opts);
       process.stdout.write("OK\n");

@@ -36,8 +36,10 @@ export function emitGlue(hooks: BindingHook[], ctx: CodegenContext): string {
       ? `import { setup, ${handlers.join(", ")} } from "./behavior.js";`
       : `import { setup } from "./behavior.js";`;
 
-  // Build-time props from manifest defaults; the host can override by setting
-  // `window.__ADX_PROPS__["<ComponentName>"]` before this module loads.
+  // The EXACT merged props the HTML was built from (manifest defaults ⊕
+  // --data/page data), so the browser's `setup(props)` reproduces build-time
+  // state and first paint matches the crawled HTML. The host can still override
+  // by setting `globalThis.__ADX_PROPS__["<ComponentName>"]` before load.
   const propsJson = JSON.stringify(buildProps(ctx), null, 2);
 
   const wiring = hooks
@@ -95,13 +97,7 @@ function wireHook(hook: BindingHook): string {
   return lines.join("\n");
 }
 
-/** Collect build-time props from manifest defaults for the glue's setup call. */
+/** The merged props the HTML was built from (not recomputed defaults). */
 function buildProps(ctx: CodegenContext): Record<string, unknown> {
-  const props: Record<string, unknown> = {};
-  for (const [name, def] of Object.entries(ctx.manifest.props)) {
-    if (def.default !== undefined) {
-      props[name] = def.default;
-    }
-  }
-  return props;
+  return ctx.mergedProps;
 }

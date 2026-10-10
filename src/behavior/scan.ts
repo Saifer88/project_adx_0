@@ -15,7 +15,15 @@
 import type { BehaviorApi } from "./types.js";
 
 const LIFECYCLE = new Set(["onMounted", "onUnmounted", "onUpdated"]);
-const EXPORT_RE =
+
+/**
+ * Matches a top-level `export` declaration and captures the declared name.
+ * Shared with the sandbox export-strip (`src/behavior/run.ts`), which removes
+ * only the leading `export ` keyword of each match so every spelling
+ * (`export function`, `export async function`, `export function*`,
+ * `export const|let|var`) survives as a plain declaration.
+ */
+export const EXPORT_RE =
   /\bexport\s+(?:async\s+)?(?:function\s*\*?|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
 
 /**

@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { compileComponent, checkComponent } from "../src/compile.js";
 import { fixtureDir, tokensPath } from "./helpers.js";
 
-const opts = { tokensPath };
+// The fixture `name` prop is required with no default, so a standalone compile
+// must supply it via `data`.
+const opts = { tokensPath, data: { name: "Ada Lovelace" } };
 
 describe("compileComponent (end-to-end)", () => {
   it("produces the three artifacts for the UserCard fixture", () => {
@@ -17,6 +19,8 @@ describe("compileComponent (end-to-end)", () => {
     expect(html).toContain("<main>");
     expect(html).toContain('class="card"');
     expect(html).not.toContain("{{");
+    // The required `name` is resolved into a non-empty <h2>.
+    expect(html).toMatch(/<h2[^>]*>Ada Lovelace<\/h2>/);
 
     // CSS: scoped + token-resolved.
     expect(css).toContain('[data-adx-c="');
