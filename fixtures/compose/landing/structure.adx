@@ -1,0 +1,10 @@
+<div .landing>
+  <site-header :siteName="brand" current="home">
+    <a .nav-link @click="onNav">Home for {{brand}}</a>
+  </site-header>
+  <user-card :name="who" :role="role">
+    <template slot="actions">
+      <button .follow @click="onFollow">Follow {{who}}</button>
+    </template>
+  </user-card>
+</div>

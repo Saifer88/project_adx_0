@@ -56,5 +56,7 @@ export function makeCtx(
     behavior: scanBehavior(behaviorSrc, "behavior.adx.js"),
     manifest,
     mergedProps: state,
+    instanceIndex: 0,
+    absDir: fixtureDir,
   };
 }

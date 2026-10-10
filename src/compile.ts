@@ -23,8 +23,10 @@ import { emitHtml } from "./codegen/html.js";
 import { transformCss } from "./codegen/css.js";
 import { emitGlue } from "./codegen/glue.js";
 import { scopeId } from "./codegen/scope.js";
+import { createBuild } from "./codegen/compose.js";
+import { repoRoot } from "./codegen/scope-location.js";
 import { adxFileError } from "./errors.js";
-import type { CodegenContext } from "./codegen/context.js";
+import type { CodegenContext, BuildState } from "./codegen/context.js";
 import type { EvalScope } from "./expr/evaluate.js";
 import type { Manifest } from "./manifest/types.js";
 
@@ -47,6 +49,13 @@ export interface CompileOptions {
    * `"standalone"`; `compilePage` passes `"page"`. Internal.
    */
   propSource?: PropSource;
+  /**
+   * A SHARED page-global build accumulator so instance ordinals, composed-child
+   * dedupe, and cycle detection are unique across a whole page. Set by
+   * `compilePage`; the single-component path creates its own when omitted.
+   * Internal.
+   */
+  build?: BuildState;
 }
 
 /**
@@ -132,6 +141,17 @@ export function compileInstance(
   // The single-component M1 path keeps basename(dir); page/composed paths pass
   // a stable repo-relative, POSIX-normalized location (opts.scopeLocation).
   const location = opts.scopeLocation ?? basename(dir);
+  const absDir = resolve(dir);
+
+  // A build accumulator owns the page-global instance ordinal and the composed
+  // child dedupe/cycle state. A build must be supplied so this instance is
+  // assigned an ordinal (i0 for the single-component path). The caller
+  // (`compilePage`) may pass a SHARED build so ordinals are unique across a
+  // whole page; the single-component path creates its own.
+  const build =
+    opts.build ??
+    createBuild({ repoRoot: repoRoot(absDir), tokensPath: opts.tokensPath });
+  const instanceIndex = build.nextInstanceIndex++;
 
   const ctx: CodegenContext = {
     componentName: manifest.name,
@@ -141,11 +161,30 @@ export function compileInstance(
     behavior,
     manifest,
     mergedProps,
+    instanceIndex,
+    absDir,
   };
 
-  const { html, hooks } = emitHtml(ast, ctx);
-  const css = transformCss(styleSrc, ctx);
+  // Track this component on the cycle stack while its subtree compiles so a
+  // composed descendant that depends back on it is detected (chain starts at
+  // the top-level component).
+  build.cycleStack.push(absDir);
+  const { html, hooks } = emitHtml(ast, ctx, build);
+  build.cycleStack.pop();
+  const ownCss = transformCss(styleSrc, ctx);
   const glue = emitGlue(hooks, ctx);
+
+  // When this instance owns its build (the standalone path, no shared build),
+  // fold any composed children's scoped CSS (deduped by abs dir) after this
+  // component's own CSS so a standalone build that composes children still
+  // carries their styles. When a SHARED build is passed (the page path), the
+  // caller emits per-distinct-component CSS from `build.distinct`, so we return
+  // only this component's OWN css to avoid double-counting.
+  const sharedBuild = opts.build !== undefined;
+  const childCss = sharedBuild
+    ? []
+    : build.order.map((d) => build.distinct.get(d)!.css);
+  const css = [ownCss, ...childCss].join("\n");
 
   return {
     body: html,
@@ -154,7 +193,7 @@ export function compileInstance(
     hooks,
     manifest,
     scopeId: ctx.scopeId,
-    absDir: resolve(dir),
+    absDir,
     mergedProps,
     ctx,
   };

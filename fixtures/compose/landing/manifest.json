@@ -1,0 +1,13 @@
+{
+  "name": "Landing",
+  "version": "1.0.0",
+  "props": {
+    "brand": { "type": "string", "default": "ADX" },
+    "who": { "type": "string", "default": "Ada Lovelace" },
+    "role": { "type": "string", "default": "Engineer" }
+  },
+  "emits": [],
+  "slots": [],
+  "deps": ["../../site/site-header", "../../user-card"],
+  "seo": { "title": "Landing", "schema": "WebPage" }
+}

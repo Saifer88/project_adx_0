@@ -1,0 +1,8 @@
+@use tokens;
+
+.emitter {
+  pad: tokens.space-2;
+  bg: tokens.primary;
+  color: tokens.surface-0;
+  radius: tokens.radius-sm;
+}

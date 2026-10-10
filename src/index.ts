@@ -41,12 +41,20 @@ export { bareComputedKey } from "./behavior/compute-key.js";
 export { runSetup } from "./behavior/run.js";
 export type { RunSetupOptions, RunSetupResult } from "./behavior/run.js";
 
-export { scopeId, bindingId } from "./codegen/scope.js";
+export { scopeId, bindingId, instanceBindingId } from "./codegen/scope.js";
+export { HTML_TAGS, isHtmlTag } from "./codegen/html-tags.js";
 export { emitHtml } from "./codegen/html.js";
-export type { BindingHook, HtmlEmitResult } from "./codegen/html.js";
+export type { BindingHook, HtmlEmitResult, SlotContext } from "./codegen/html.js";
 export { transformCss } from "./codegen/css.js";
-export { emitGlue } from "./codegen/glue.js";
-export type { CodegenContext } from "./codegen/context.js";
+export { emitGlue, emitComponentGlue } from "./codegen/glue.js";
+export { createBuild } from "./codegen/compose.js";
+export type { CreateBuildOptions } from "./codegen/compose.js";
+export type {
+  CodegenContext,
+  BuildState,
+  DistinctComponent,
+  InstanceRecord,
+} from "./codegen/context.js";
 
 export {
   compileComponent,

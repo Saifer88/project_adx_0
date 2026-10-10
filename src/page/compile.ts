@@ -16,10 +16,11 @@
  */
 
 import { existsSync } from "node:fs";
-import { basename, resolve, dirname } from "node:path";
+import { resolve, dirname } from "node:path";
 import { adxFileError } from "../errors.js";
 import { escapeHtml, indentBlock, compileInstance } from "../compile.js";
-import type { CompiledInstance } from "../compile.js";
+import { createBuild } from "../codegen/compose.js";
+import { emitComponentGlue } from "../codegen/glue.js";
 import { repoRoot, scopeLocation } from "../codegen/scope-location.js";
 import { loadPage } from "./load.js";
 import type { PageManifest } from "./types.js";
@@ -77,21 +78,11 @@ export function compilePage(
   const pageDir = dirname(resolve(pageManifestPath));
   const root = repoRoot(pageDir);
 
+  // ONE shared build so instance ordinals, composed-child dedupe and cycle
+  // detection are unique across the whole page.
+  const build = createBuild({ repoRoot: root, tokensPath: opts.tokensPath });
+
   const bodies: string[] = [];
-  // Dedupe per DISTINCT component by resolved absolute dir.
-  const byDir = new Map<
-    string,
-    {
-      stem: string;
-      scopeId: string;
-      componentName: string;
-      css: string;
-      hooks: CompiledInstance["hooks"];
-      instances: Array<{ instanceIndex: number; props: Record<string, unknown> }>;
-    }
-  >();
-  const orderOfDistinct: string[] = [];
-  let instanceIndex = 0;
 
   for (const entry of page.components) {
     const absDir = resolveUse(pageDir, entry.use, pageFile);
@@ -101,38 +92,48 @@ export function compilePage(
       data: entry.data,
       propSource: "page",
       scopeLocation: location,
+      build,
     });
 
     bodies.push(inst.body);
 
-    let distinct = byDir.get(absDir);
+    // Register the top-level component as a distinct component in the SAME
+    // build table used by composed children, so one glue module per distinct
+    // component covers every instance on the page (top-level + composed).
+    let distinct = build.distinct.get(absDir);
     if (!distinct) {
       distinct = {
-        stem: basename(absDir),
+        absDir,
         scopeId: inst.scopeId,
         componentName: inst.manifest.name,
+        // `inst.css` is this component's OWN css only (a shared build was
+        // passed, so children are deduped separately in `build.distinct`).
         css: inst.css,
         hooks: inst.hooks,
         instances: [],
       };
-      byDir.set(absDir, distinct);
-      orderOfDistinct.push(absDir);
+      build.distinct.set(absDir, distinct);
+      build.order.push(absDir);
     }
     distinct.instances.push({
-      instanceIndex: instanceIndex++,
+      instanceIndex: inst.ctx.instanceIndex,
       props: inst.mergedProps,
     });
   }
 
-  // Union per-component CSS (deduped by absolute dir -> one block per component).
-  const css = orderOfDistinct.map((d) => byDir.get(d)!.css).join("\n");
+  // Union per-DISTINCT-component CSS (deduped by absolute dir), in discovery
+  // order (top-level and composed interleave as encountered).
+  const css = build.order
+    .map((d) => build.distinct.get(d)!.css)
+    .join("\n");
 
-  const components: PageComponentAsset[] = orderOfDistinct.map((d) => {
-    const c = byDir.get(d)!;
+  const components: PageComponentAsset[] = build.order.map((d) => {
+    const c = build.distinct.get(d)!;
+    const stem = stemOf(d);
     return {
-      stem: c.stem,
+      stem,
       absDir: d,
-      glue: emitComponentGlue(c),
+      glue: emitComponentGlue(c, `./${stem}.behavior.js`),
     };
   });
 
@@ -143,6 +144,11 @@ export function compilePage(
   const html = wrapPageDocument(bodies, page);
 
   return { page, html, css, glue, components };
+}
+
+/** The output filename stem for a component (its directory basename). */
+function stemOf(absDir: string): string {
+  return absDir.split(/[/\\]/).filter(Boolean).pop() ?? "component";
 }
 
 /**
@@ -208,88 +214,6 @@ ${body}
 </body>
 </html>
 `;
-}
-
-/**
- * Emit one glue module for a DISTINCT component, carrying an INSTANCES array
- * (one record per instance of that component on the page, each with its own
- * instanceIndex and merged props). The module imports the component's behavior
- * and hydrates each instance root. The per-instance root/selection mechanism is
- * finished in FEAT-003; FEAT-002 bakes the INSTANCES array and wires events on
- * the shared scope root so the module is functional.
- */
-function emitComponentGlue(c: {
-  stem: string;
-  scopeId: string;
-  componentName: string;
-  hooks: CompiledInstance["hooks"];
-  instances: Array<{ instanceIndex: number; props: Record<string, unknown> }>;
-}): string {
-  const handlers = Array.from(
-    new Set(c.hooks.flatMap((h) => h.events.map((e) => e.handler))),
-  ).sort();
-
-  const importLine =
-    handlers.length > 0
-      ? `import { setup, ${handlers.join(", ")} } from "./${c.stem}.behavior.js";`
-      : `import { setup } from "./${c.stem}.behavior.js";`;
-
-  const instancesJson = JSON.stringify(
-    c.instances.map((i) => ({ instanceIndex: i.instanceIndex, props: i.props })),
-    null,
-    2,
-  );
-
-  const wiring = c.hooks
-    .filter((h) => h.events.length > 0)
-    .map((h) => wireHook(h))
-    .join("\n");
-
-  return `${importLine}
-
-// Per-instance hydration glue for ${c.componentName}. Content is already in the
-// HTML; this module attaches interactivity to the existing DOM. No vDOM.
-
-const SCOPE = ${JSON.stringify(c.scopeId)};
-const INSTANCES = ${instancesJson};
-
-globalThis.emit = globalThis.emit || function emit(name, detail) {
-  const root = document.querySelector('[data-adx-c="' + SCOPE + '"]');
-  if (!root) return;
-  root.dispatchEvent(new CustomEvent(name, { detail, bubbles: true }));
-};
-
-function byHook(id) {
-  return document.querySelector('[data-adx-b="' + id + '"]');
-}
-
-for (const instance of INSTANCES) {
-  const overrides =
-    (globalThis.__ADX_PROPS__ || {})[${JSON.stringify(c.componentName)}] || {};
-  const props = Object.assign({}, instance.props, overrides);
-  const state = setup(props);
-  const root = document.querySelector('[data-adx-c="' + SCOPE + '"]');
-  if (root) {
-${indentBlock(wiring || "// No event bindings to wire.", 4)}
-  }
-}
-`;
-}
-
-/** Emit the event-wiring statements for one hooked node (page glue). */
-function wireHook(hook: CompiledInstance["hooks"][number]): string {
-  const lines: string[] = [];
-  lines.push(`{`);
-  lines.push(`  const el = byHook(${JSON.stringify(hook.id)});`);
-  lines.push(`  if (el) {`);
-  for (const e of hook.events) {
-    lines.push(
-      `    el.addEventListener(${JSON.stringify(e.event)}, (event) => ${e.handler}(state, event));`,
-    );
-  }
-  lines.push(`  }`);
-  lines.push(`}`);
-  return lines.join("\n");
 }
 
 /** Emit the tiny page entry module importing each component's hydration. */

@@ -1,0 +1,19 @@
+@use tokens;
+
+.landing {
+  display: flex;
+  flex-direction: column;
+  gap: tokens.space-4;
+  pad: tokens.space-4;
+}
+
+.nav-link {
+  color: tokens.primary;
+}
+
+.follow {
+  pad: tokens.space-2;
+  bg: tokens.primary;
+  color: tokens.surface-0;
+  radius: tokens.radius-sm;
+}

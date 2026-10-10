@@ -83,8 +83,11 @@ describe("emitHtml", () => {
     );
     const { html, hooks } = emitHtml(ast, ctx);
     expect(html).toContain(`data-adx-c="${ctx.scopeId}"`);
-    expect(html).toContain(`data-adx-b="${ctx.scopeId}-0"`);
-    expect(html).toContain(`data-adx-b="${ctx.scopeId}-1"`);
+    // The instance root (top-level owned element) carries data-adx-i.
+    expect(html).toContain(`data-adx-i="i0"`);
+    // Hook ids are instance-scoped: `${scope}-i<ordinal>-<n>`.
+    expect(html).toContain(`data-adx-b="${ctx.scopeId}-i0-0"`);
+    expect(html).toContain(`data-adx-b="${ctx.scopeId}-i0-1"`);
     // article has the @click event, img has a binding.
     expect(hooks[0].events).toEqual([{ event: "click", handler: "onClick" }]);
     expect(hooks[1].bindings).toEqual(["src"]);

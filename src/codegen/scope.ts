@@ -32,3 +32,21 @@ export function scopeId(componentName: string, locationPath: string): string {
 export function bindingId(scope: string, index: number): string {
   return `${scope}-${index}`;
 }
+
+/**
+ * Build an instance-scoped binding-hook id: `${scope}-i${instanceIndex}-${n}`.
+ *
+ * The `scope` segment groups a component's CSS (one `data-adx-c` per component);
+ * the `i<instanceIndex>` segment disambiguates each INSTANCE of that component
+ * on a page (so N instances never collide); `n` is the per-instance node index.
+ * This is additive — `bindingId`/`scopeId` are unchanged. The composition/page
+ * emit path uses this form so the per-instance glue can resolve each instance's
+ * hooked nodes within its own root.
+ */
+export function instanceBindingId(
+  scope: string,
+  instanceIndex: number,
+  n: number,
+): string {
+  return `${scope}-i${instanceIndex}-${n}`;
+}
