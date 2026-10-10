@@ -1,0 +1,98 @@
+{
+  "encoder": "o200k_base",
+  "tasks": [
+    {
+      "id": "understand",
+      "label": "Understand the component (read its full source)",
+      "adx": {
+        "tokens": 542,
+        "files": [
+          {
+            "path": "adx/manifest.json",
+            "tokens": 115
+          },
+          {
+            "path": "adx/structure.adx",
+            "tokens": 83
+          },
+          {
+            "path": "adx/behavior.adx.js",
+            "tokens": 90
+          },
+          {
+            "path": "adx/style.adx.css",
+            "tokens": 254
+          }
+        ]
+      },
+      "react": {
+        "tokens": 627,
+        "files": [
+          {
+            "path": "react/UserCard.tsx",
+            "tokens": 334
+          },
+          {
+            "path": "react/UserCard.module.css",
+            "tokens": 293
+          }
+        ]
+      },
+      "savings": 0.13556618819776714
+    },
+    {
+      "id": "modify-style",
+      "label": "Modify a style (read only the file a style change touches)",
+      "adx": {
+        "tokens": 254,
+        "files": [
+          {
+            "path": "adx/style.adx.css",
+            "tokens": 254
+          }
+        ]
+      },
+      "react": {
+        "tokens": 293,
+        "files": [
+          {
+            "path": "react/UserCard.module.css",
+            "tokens": 293
+          }
+        ]
+      },
+      "savings": 0.13310580204778158
+    },
+    {
+      "id": "add-prop",
+      "label": "Add a prop (read the files an add-a-prop change touches)",
+      "adx": {
+        "tokens": 288,
+        "files": [
+          {
+            "path": "adx/manifest.json",
+            "tokens": 115
+          },
+          {
+            "path": "adx/structure.adx",
+            "tokens": 83
+          },
+          {
+            "path": "adx/behavior.adx.js",
+            "tokens": 90
+          }
+        ]
+      },
+      "react": {
+        "tokens": 334,
+        "files": [
+          {
+            "path": "react/UserCard.tsx",
+            "tokens": 334
+          }
+        ]
+      },
+      "savings": 0.1377245508982036
+    }
+  ]
+}

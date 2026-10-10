@@ -1,0 +1,9 @@
+<article .card @click="onClick">
+  <img :src="avatar" :alt="name" .avatar>
+  <div .content>
+    <h2 .name>{{name}}</h2>
+    <p .role>{{role}}</p>
+    <p :if="bio" .bio>{{bio}}</p>
+  </div>
+  <slot actions .actions />
+</article>

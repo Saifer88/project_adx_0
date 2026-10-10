@@ -1,0 +1,36 @@
+{
+  "description": "Token benchmark tasks: ADX source vs an equivalent React implementation of the same UserCard component. Each task names the file set an agent must READ to perform that operation. Paths are relative to the benchmark/ directory. Reproduce with `npm run benchmark`.",
+  "encoder": "o200k_base",
+  "tasks": [
+    {
+      "id": "understand",
+      "label": "Understand the component (read its full source)",
+      "adx": [
+        "adx/manifest.json",
+        "adx/structure.adx",
+        "adx/behavior.adx.js",
+        "adx/style.adx.css"
+      ],
+      "react": [
+        "react/UserCard.tsx",
+        "react/UserCard.module.css"
+      ]
+    },
+    {
+      "id": "modify-style",
+      "label": "Modify a style (read only the file a style change touches)",
+      "adx": ["adx/style.adx.css"],
+      "react": ["react/UserCard.module.css"]
+    },
+    {
+      "id": "add-prop",
+      "label": "Add a prop (read the files an add-a-prop change touches)",
+      "adx": [
+        "adx/manifest.json",
+        "adx/structure.adx",
+        "adx/behavior.adx.js"
+      ],
+      "react": ["react/UserCard.tsx"]
+    }
+  ]
+}

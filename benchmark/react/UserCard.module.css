@@ -1,0 +1,53 @@
+.card {
+  display: flex;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(16, 24, 40, 0.1);
+  gap: 16px;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 12px 24px rgba(16, 24, 40, 0.14);
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 9999px;
+  object-fit: cover;
+}
+
+.content {
+  flex: 1;
+}
+
+.name {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1f29;
+}
+
+.role {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #4a5361;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bio {
+  margin: 0;
+  font-size: 16px;
+  color: #4a5361;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

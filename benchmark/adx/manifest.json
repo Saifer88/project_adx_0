@@ -1,0 +1,12 @@
+{
+  "name": "UserCard",
+  "version": "1.0.0",
+  "props": {
+    "name": { "type": "string", "required": true },
+    "avatar": { "type": "string", "default": "/default.png" },
+    "bio": { "type": "string", "default": "" },
+    "role": { "type": "string", "default": "User" }
+  },
+  "emits": ["click", "follow"],
+  "slots": ["actions"]
+}

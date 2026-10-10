@@ -1,0 +1,21 @@
+{
+  "comment": "Dev-only build for the token benchmark. Compiled by `npm run benchmark` into dist/benchmark/run.js. Kept separate from tsconfig.json so the published dist/ layout (dist/cli.js, dist/index.js) is never relocated — benchmark/ sits outside src/ and must not change the src rootDir.",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": ".",
+    "outDir": "dist",
+    "declaration": false,
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  },
+  "include": ["benchmark/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}
