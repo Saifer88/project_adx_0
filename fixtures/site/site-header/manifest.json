@@ -1,0 +1,10 @@
+{
+  "name": "SiteHeader",
+  "version": "1.0.0",
+  "props": {
+    "siteName": { "type": "string", "required": true },
+    "current": { "type": "string", "default": "home" }
+  },
+  "emits": [],
+  "slots": [""]
+}

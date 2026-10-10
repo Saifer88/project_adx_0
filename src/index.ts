@@ -48,9 +48,28 @@ export { transformCss } from "./codegen/css.js";
 export { emitGlue } from "./codegen/glue.js";
 export type { CodegenContext } from "./codegen/context.js";
 
-export { compileComponent, checkComponent, resolveProps } from "./compile.js";
+export {
+  compileComponent,
+  checkComponent,
+  compileInstance,
+  resolveProps,
+  escapeHtml,
+  indentBlock,
+} from "./compile.js";
 export type {
   CompileOptions,
   CompiledComponent,
+  CompiledInstance,
   PropSource,
 } from "./compile.js";
+
+export { repoRoot, scopeLocation } from "./codegen/scope-location.js";
+
+export { loadPage, parsePage } from "./page/load.js";
+export type { PageManifest, PageComponent } from "./page/types.js";
+export { compilePage, checkPage, wrapPageDocument } from "./page/compile.js";
+export type {
+  CompilePageOptions,
+  CompiledPage,
+  PageComponentAsset,
+} from "./page/compile.js";

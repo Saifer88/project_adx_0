@@ -1,0 +1,18 @@
+{
+  "page": "about",
+  "title": "About us",
+  "description": "Who we are and what ADX is.",
+  "lang": "en",
+  "canonical": "/about/",
+  "schema": "AboutPage",
+  "components": [
+    {
+      "use": "./site-header",
+      "data": { "siteName": "ADX Demo", "current": "about" }
+    },
+    {
+      "use": "../user-card",
+      "data": { "name": "Grace Hopper", "role": "Advisor", "bio": "Compiler pioneer." }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<header .site-header>
+  <h1 .brand>{{siteName}}</h1>
+  <p .current>Current page: {{current}}</p>
+  <nav .nav>
+    <slot .nav-slot />
+  </nav>
+</header>

@@ -10,6 +10,7 @@ import type { TokenTable } from "../src/tokens/types.js";
 const here = dirname(fileURLToPath(import.meta.url));
 
 export const fixtureDir = join(here, "..", "fixtures", "user-card");
+export const siteDir = join(here, "..", "fixtures", "site");
 export const tokensPath = join(here, "..", "tokens", "design-tokens.json");
 
 export function tokens(): TokenTable {

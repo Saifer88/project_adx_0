@@ -35,6 +35,38 @@ export interface CompileOptions {
   tokensPath?: string;
   /** Parsed `--data` JSON: the props object overlaid on manifest defaults. */
   data?: Record<string, unknown>;
+  /**
+   * The location string handed to `scopeId`. The single-component M1 path uses
+   * `basename(dir)`; the page/composed paths pass a stable repo-relative,
+   * POSIX-normalized path (see {@link scopeLocation}) so ids are identical
+   * across machines. Internal — set by `compilePage`.
+   */
+  scopeLocation?: string;
+  /**
+   * Which prop source selects the required-prop hint. Defaults to
+   * `"standalone"`; `compilePage` passes `"page"`. Internal.
+   */
+  propSource?: PropSource;
+}
+
+/**
+ * A component compiled as part of a larger build (page/composition): the raw
+ * body HTML (NOT wrapped in a document), its scoped CSS, the glue, the ordered
+ * binding hooks, and enough identity to dedupe/compose.
+ */
+export interface CompiledInstance {
+  /** The component body markup (no `<!DOCTYPE>`/`<head>`/`<main>` wrapper). */
+  body: string;
+  css: string;
+  glue: string;
+  hooks: import("./codegen/html.js").BindingHook[];
+  manifest: Manifest;
+  /** The deterministic scope id (shared across instances of a component). */
+  scopeId: string;
+  /** The resolved absolute component directory (dedupe key). */
+  absDir: string;
+  /** The exact merged props the body was built from. */
+  mergedProps: Record<string, unknown>;
 }
 
 /** Where a component's props come from — selects the required-prop hint. */
@@ -56,6 +88,27 @@ export function compileComponent(
   dir: string,
   opts: CompileOptions = {},
 ): CompiledComponent {
+  const inst = compileInstance(dir, opts);
+  const ctx = inst.ctx;
+  return {
+    html: wrapDocument(inst.body, ctx),
+    css: inst.css,
+    glue: inst.glue,
+    manifest: inst.manifest,
+  };
+}
+
+/**
+ * Shared single-component path used by both the standalone build and the page
+ * build. Runs manifest -> parse -> scan -> tokens -> emit for ONE instance and
+ * returns the raw body (unwrapped), css, glue, hooks and identity. The caller
+ * decides how to wrap/combine the body (`compileComponent` wraps it in a full
+ * document; `compilePage` concatenates several bodies inside one `<main>`).
+ */
+export function compileInstance(
+  dir: string,
+  opts: CompileOptions = {},
+): CompiledInstance & { ctx: CodegenContext } {
   const manifest = loadManifest(dir);
 
   const structureSrc = readFileSync(join(dir, "structure.adx"), "utf8");
@@ -71,13 +124,18 @@ export function compileComponent(
 
   // Three-layer merge (manifest defaults <- data) + required-prop validation,
   // then run setup() in the sandbox to compute true build-time state.
-  const mergedProps = resolveProps(manifest, opts.data, "standalone");
+  const source: PropSource = opts.propSource ?? "standalone";
+  const mergedProps = resolveProps(manifest, opts.data, source);
   const { state, computed } = runSetup(behaviorSrc, mergedProps, behavior);
   const scope: EvalScope = { state, props: mergedProps, computed };
 
+  // The single-component M1 path keeps basename(dir); page/composed paths pass
+  // a stable repo-relative, POSIX-normalized location (opts.scopeLocation).
+  const location = opts.scopeLocation ?? basename(dir);
+
   const ctx: CodegenContext = {
     componentName: manifest.name,
-    scopeId: scopeId(manifest.name, basename(dir)),
+    scopeId: scopeId(manifest.name, location),
     scope,
     tokens,
     behavior,
@@ -89,7 +147,17 @@ export function compileComponent(
   const css = transformCss(styleSrc, ctx);
   const glue = emitGlue(hooks, ctx);
 
-  return { html: wrapDocument(html, ctx), css, glue, manifest };
+  return {
+    body: html,
+    css,
+    glue,
+    hooks,
+    manifest,
+    scopeId: ctx.scopeId,
+    absDir: resolve(dir),
+    mergedProps,
+    ctx,
+  };
 }
 
 /** Validate + emit a component without writing anything. Throws on error. */
@@ -211,7 +279,7 @@ ${indentBlock(body, 4)}
 `;
 }
 
-function indentBlock(text: string, spaces: number): string {
+export function indentBlock(text: string, spaces: number): string {
   const pad = " ".repeat(spaces);
   return text
     .split("\n")
@@ -219,7 +287,7 @@ function indentBlock(text: string, spaces: number): string {
     .join("\n");
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

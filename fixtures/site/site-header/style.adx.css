@@ -1,0 +1,28 @@
+@use tokens;
+
+.site-header {
+  display: flex;
+  flex-direction: column;
+  pad: tokens.space-4;
+  bg: tokens.surface-1;
+  radius: tokens.radius-md;
+  gap: tokens.space-2;
+}
+
+.brand {
+  margin: 0;
+  size: tokens.text-2xl;
+  weight: tokens.weight-bold;
+  color: tokens.text-1;
+}
+
+.current {
+  margin: 0;
+  size: tokens.text-sm;
+  color: tokens.text-2;
+}
+
+.nav {
+  display: flex;
+  gap: tokens.space-2;
+}

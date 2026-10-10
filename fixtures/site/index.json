@@ -1,0 +1,17 @@
+{
+  "page": "index",
+  "title": "ADX Demo — Home",
+  "description": "The home page of the ADX two-page demo site.",
+  "lang": "en",
+  "schema": "WebPage",
+  "components": [
+    {
+      "use": "./site-header",
+      "data": { "siteName": "ADX Demo", "current": "home" }
+    },
+    {
+      "use": "../user-card",
+      "data": { "name": "Ada Lovelace", "role": "Founder", "bio": "First programmer." }
+    }
+  ]
+}

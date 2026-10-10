@@ -14,9 +14,10 @@
  * No other subcommands exist in M1.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import { compileComponent, checkComponent } from "./compile.js";
+import { compilePage, checkPage } from "./page/compile.js";
 
 interface ParsedArgs {
   command: string | undefined;
@@ -74,9 +75,85 @@ function loadData(path: string): Record<string, unknown> {
 function usage(): string {
   return [
     "Usage:",
-    "  adx build <componentDir> [--out dist] [--tokens <path>] [--data <file.json>]",
-    "  adx check <componentDir> [--tokens <path>] [--data <file.json>]",
+    "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
+    "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
   ].join("\n");
+}
+
+/** Build/check a single component directory (M1 path, unchanged behavior). */
+function runComponent(args: ParsedArgs): number {
+  const dir = args.dir as string;
+  const opts: { tokensPath?: string; data?: Record<string, unknown> } = {};
+  if (args.tokens) {
+    opts.tokensPath = args.tokens;
+  }
+  // --data applies ONLY to the component path; a page carries per-instance data.
+  if (args.data) {
+    opts.data = loadData(args.data);
+  }
+
+  if (args.command === "check") {
+    checkComponent(dir, opts);
+    process.stdout.write("OK\n");
+    return 0;
+  }
+
+  const result = compileComponent(dir, opts);
+  // Output folder = the component directory's basename (e.g. `user-card`),
+  // which keeps clean, stable, hyphenated URLs regardless of manifest casing.
+  const outDir = join(args.out, basename(dir.replace(/[/\\]+$/, "")));
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, "index.html"), result.html, "utf8");
+  writeFileSync(join(outDir, "style.css"), result.css, "utf8");
+  writeFileSync(join(outDir, "glue.js"), result.glue, "utf8");
+  // The glue module hydrates the static HTML by importing the component's
+  // behavior exports from `./behavior.js`. Emit that module alongside the glue
+  // so the import resolves in the browser — `behavior.adx.js` is already plain
+  // ES-module JS (scanned, never executed at build time), so it is copied as-is.
+  writeFileSync(
+    join(outDir, "behavior.js"),
+    readFileSync(join(dir, "behavior.adx.js"), "utf8"),
+    "utf8",
+  );
+  process.stdout.write(`Built ${result.manifest.name} -> ${outDir}\n`);
+  return 0;
+}
+
+/** Build/check a page manifest. Writes one `index.html` per clean URL. */
+function runPage(args: ParsedArgs): number {
+  const pageFile = args.dir as string;
+  const opts: { tokensPath?: string } = {};
+  if (args.tokens) {
+    opts.tokensPath = args.tokens;
+  }
+
+  if (args.command === "check") {
+    checkPage(pageFile, opts);
+    process.stdout.write("OK\n");
+    return 0;
+  }
+
+  const result = compilePage(pageFile, opts);
+  // page "index"/"home" -> site root <out>/index.html; else <out>/<slug>/index.html.
+  const slug = result.page.page;
+  const outDir =
+    slug === "index" || slug === "home" ? args.out : join(args.out, slug);
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, "index.html"), result.html, "utf8");
+  writeFileSync(join(outDir, "style.css"), result.css, "utf8");
+  writeFileSync(join(outDir, "glue.js"), result.glue, "utf8");
+  // Each distinct component's hydration module + its behavior source, beside
+  // the page so the relative imports resolve in the browser.
+  for (const comp of result.components) {
+    writeFileSync(join(outDir, `${comp.stem}.glue.js`), comp.glue, "utf8");
+    writeFileSync(
+      join(outDir, `${comp.stem}.behavior.js`),
+      readFileSync(join(comp.absDir, "behavior.adx.js"), "utf8"),
+      "utf8",
+    );
+  }
+  process.stdout.write(`Built page ${slug} -> ${outDir}\n`);
+  return 0;
 }
 
 function run(argv: string[]): number {
@@ -87,44 +164,25 @@ function run(argv: string[]): number {
     return 1;
   }
   if (!args.dir) {
-    process.stderr.write(`Missing <componentDir>.\n${usage()}\n`);
+    process.stderr.write(`Missing <componentDir|page.json>.\n${usage()}\n`);
     return 1;
   }
 
   try {
-    const opts: { tokensPath?: string; data?: Record<string, unknown> } = {};
-    if (args.tokens) {
-      opts.tokensPath = args.tokens;
+    // Strict 3-step dispatch (no overlap):
+    //   1. positional arg ends in .json  -> page build/check
+    //   2. else a dir containing manifest.json -> component build/check (M1)
+    //   3. else -> fatal "Not a component directory or page manifest"
+    const input = args.dir;
+    if (input.endsWith(".json")) {
+      return runPage(args);
     }
-    if (args.data) {
-      opts.data = loadData(args.data);
+    if (existsSync(resolve(input, "manifest.json"))) {
+      return runComponent(args);
     }
-
-    if (args.command === "check") {
-      checkComponent(args.dir, opts);
-      process.stdout.write("OK\n");
-      return 0;
-    }
-
-    const result = compileComponent(args.dir, opts);
-    // Output folder = the component directory's basename (e.g. `user-card`),
-    // which keeps clean, stable, hyphenated URLs regardless of manifest casing.
-    const outDir = join(args.out, basename(args.dir.replace(/[/\\]+$/, "")));
-    mkdirSync(outDir, { recursive: true });
-    writeFileSync(join(outDir, "index.html"), result.html, "utf8");
-    writeFileSync(join(outDir, "style.css"), result.css, "utf8");
-    writeFileSync(join(outDir, "glue.js"), result.glue, "utf8");
-    // The glue module hydrates the static HTML by importing the component's
-    // behavior exports from `./behavior.js`. Emit that module alongside the glue
-    // so the import resolves in the browser — `behavior.adx.js` is already plain
-    // ES-module JS (scanned, never executed at build time), so it is copied as-is.
-    writeFileSync(
-      join(outDir, "behavior.js"),
-      readFileSync(join(args.dir, "behavior.adx.js"), "utf8"),
-      "utf8",
+    throw new Error(
+      `[ADX] ${input} - Not a component directory or page manifest`,
     );
-    process.stdout.write(`Built ${result.manifest.name} -> ${outDir}\n`);
-    return 0;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(message + "\n");
