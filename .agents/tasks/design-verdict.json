@@ -1,0 +1,22 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": "NIT-1",
+      "severity": "NIT",
+      "title": "Broken sentence in the multi-top-level-element root rule",
+      "where": "Phase 3 'A per-instance root discriminator'",
+      "problem": "The sentence 'the emitter wraps the instance body is not done (no speculative wrappers) — instead data-adx-i is stamped on each top-level owned element' is grammatically garbled (a merge of 'the emitter wraps the instance body' and 'wrapping is not done'). The intended rule is clear and correct but the prose should be fixed before it reaches the grammar/architecture docs.",
+      "fix": "Reword, e.g.: 'for a structure with multiple top-level siblings, the emitter does NOT add a wrapper element (no speculative wrappers); instead it stamps data-adx-i on EACH top-level owned element of the instance.'"
+    },
+    {
+      "id": "NIT-2",
+      "severity": "NIT",
+      "title": "Glue code sketch uses querySelector for the instance root, but the multi-root rule says the root query returns a NodeList",
+      "where": "Phase 3 'A per-instance root discriminator' vs 'The per-instance glue module'",
+      "problem": "The §2 text says a multi-top-level-element instance's root query 'returns a NodeList that the instance treats as its roots', but the §3 glue sketch locates the root with document.querySelector('[data-adx-c=SCOPE][data-adx-i=i<k>]') (single element) and scopes byHook/rerender/emit to that one root. The dominant single-root case (fixture user-card) is fully correct; only the explicitly 'supported but discouraged' multi-root case is under-specified (the sketch would bind only the first top-level element). Not blocking because the per-instance mechanism is correct for the single-root case the hard constraint targets.",
+      "fix": "Pick one so §2 and §3 agree: (a) require a composed instance to have a single top-level root (fatal error otherwise), or (b) make the §3 sketch use querySelectorAll for the instance roots and iterate so byHook/rerender/emit cover every top-level element."
+    }
+  ],
+  "reviewDoc": "/Users/pirrima001/coding/personal/project_adx_0/.worktrees/adx-m2/.agents/tasks/design-review.md"
+}
