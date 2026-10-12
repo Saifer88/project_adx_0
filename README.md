@@ -1,5 +1,7 @@
 # ADX Framework
 
+*"Created by AI. For AI. Humans will understand."*
+
 **Agent-Driven Experience Framework**
 
 ![SEO Friendly](https://img.shields.io/badge/SEO-friendly-brightgreen)
@@ -177,4 +179,3 @@ token benchmark. **Next up**: a pattern library, dev server + hot reload, the
 
 ---
 
-*"Make it cheap for AI. Make it beautiful for humans."*
