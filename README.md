@@ -38,11 +38,16 @@ The publish workflow authenticates to npm with a repository secret named
 
 1. **Create the npm token.** Sign in at [npmjs.com](https://www.npmjs.com/),
    open **Access Tokens** from your avatar menu, and choose **Generate New
-   Token**. Pick a token that can publish:
-   - **Granular Access Token** (recommended): scope it to the `project-adx-0`
-     package with **Read and write** permission, and set an expiry.
-   - Or a classic **Automation** token, which bypasses 2FA so CI can publish
-     non-interactively.
+   Token → Granular Access Token** (as of late 2025 npm only issues granular
+   tokens; classic/Automation tokens have been removed). Configure it so CI can
+   publish unattended:
+   - Scope it to the `project-adx-0` package with **Read and write** permission,
+     and set an expiry.
+   - **Enable "Bypass two-factor authentication (2FA)".** This box is unchecked
+     by default. If your account enforces 2FA on publish and the token does not
+     bypass it, `npm publish` in Actions fails with an OTP prompt the workflow
+     cannot answer. See npm's
+     [CI/CD token guide](https://docs.npmjs.com/using-private-packages-in-a-ci-cd-workflow).
 2. **Copy the token value.** npm shows it only once. Treat it like a password —
    do not paste it into code, commits, or chat.
 3. **Add it as a GitHub Actions secret.** In the GitHub repo, go to

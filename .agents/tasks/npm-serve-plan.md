@@ -322,6 +322,45 @@ piped `-1` is an artifact):
 - `.github/workflows/publish.yml` parsed clean via `npx js-yaml`; guard publishes
   only when `npm view project-adx-0@<version>` is empty.
 
+## Verification evidence (iteration 4 — review fix)
+
+One blocking finding from `npm-serve-review.json` fixed (source: review-b,
+"CI token may require interactive OTP"):
+
+- **Maintainer token guide can fail unattended publish (blocking)** —
+  `README.md` "Publishing setup (maintainers)" previously told maintainers to
+  create a granular token with read/write + expiry (omitting the 2FA-bypass
+  setting) and offered a classic **Automation** token as a fallback. Confirmed
+  against current npm docs that (a) a granular token needs **Bypass two-factor
+  authentication (2FA)** enabled — unchecked by default — or non-interactive
+  `npm publish` in Actions fails with an OTP prompt the workflow cannot answer
+  ([npm CI/CD token guide](https://docs.npmjs.com/using-private-packages-in-a-ci-cd-workflow));
+  and (b) classic/Automation tokens were removed in late 2025, so that fallback
+  route no longer exists
+  ([npm access-token docs](https://docs.npmjs.com/about-access-tokens)). Rewrote
+  the step to require a Granular Access Token scoped to `project-adx-0` with
+  Read and write permission **and** the 2FA-bypass box enabled, dropped the
+  classic-token fallback, and linked npm's CI/CD guide. Content was rephrased
+  for compliance with licensing restrictions. Docs-only change; no code touched.
+
+Low/informational findings intentionally left as-is (all non-blocking, same
+rationale as prior iterations): prerelease `latest` dist-tag (acceptable while
+0.1.0-alpha is the only version), lexical symlink containment (documented
+assumption; preview over trusted compiler output), `--host 0.0.0.0` LAN
+exposure (documented; default is loopback), and no `concurrency` guard on the
+publish workflow (the version guard already blocks duplicate publishes).
+
+Commands run from repo root (exit codes are the real process exits; the
+harness's piped `-1` is an artifact):
+
+- `npx tsc -p tsconfig.json` → `BUILD_EXIT=0` (build clean).
+- `npx eslint .` → `LINT_EXIT=0` (lint clean).
+- `npx vitest run` → **22 files, 209 tests passed** (0 failures); serve suite
+  green. (A docs-only edit, so no behavior change expected — confirmed.)
+- `.github/workflows/publish.yml` re-validated via `npx js-yaml` → `YAML_OK`;
+  guard still publishes only when `npm view project-adx-0@<version>` is empty,
+  `NODE_AUTH_TOKEN` from `secrets.NPM_TOKEN`, no benchmark/browser steps.
+
 ## Assumptions & notes
 - Invalid `--port` handling (bad value vs omitted) is a small design choice item 1/3
   resolve: omitted -> 3000 default; explicitly bad value -> fatal `[ADX] --port ...`
