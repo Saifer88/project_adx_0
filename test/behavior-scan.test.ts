@@ -14,6 +14,24 @@ const behaviorPath = join(
 );
 
 describe("behavior scanner", () => {
+  it("ignores exports inside comments, strings and template literals", () => {
+    const api = scanBehavior('/* export function onFake() {} */\nexport function setup(){ return {text: "export function onString(){}", template: `export const getFake = 1`} }');
+    expect(api.all).toEqual(["setup"]);
+  });
+
+  it("finds every declared name in a variable export", () => {
+    expect(scanBehavior('export const setup = () => ({}), onClick = () => {};').all).toEqual(["onClick", "setup"]);
+  });
+
+  it("reports malformed JavaScript with its source line", () => {
+    expect(() => scanBehavior('export function setup( {')).toThrow(/\[ADX\] behavior.adx.js:1/);
+  });
+
+  it("rejects unsupported module forms explicitly", () => {
+    expect(() => scanBehavior('import value from "other";')).toThrow(/imports and re-exports are unsupported/);
+    expect(() => scanBehavior('const setup = () => ({}); export {setup};')).toThrow(/export declarations/);
+  });
+
   it("scans the UserCard fixture", () => {
     const api = scanBehavior(readFileSync(behaviorPath, "utf8"), "behavior.adx.js");
     expect(api.hasSetup).toBe(true);

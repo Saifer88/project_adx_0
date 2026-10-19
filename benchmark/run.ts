@@ -53,6 +53,7 @@ export interface TaskResult {
 
 /** The full benchmark result. */
 export interface Results {
+  scope: "source-read";
   encoder: string;
   tasks: TaskResult[];
 }
@@ -91,7 +92,71 @@ export function measure(
     const savings = react.tokens === 0 ? 0 : (react.tokens - adx.tokens) / react.tokens;
     return { id: set.id, label: set.label, adx, react, savings };
   });
-  return { encoder: encoderName, tasks };
+  return { scope: "source-read", encoder: encoderName, tasks };
+}
+
+export interface WorkflowRun {
+  task: string;
+  model: string;
+  trial: string;
+  protocol: string;
+  framework: "adx" | "react";
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  attempts: number;
+  passed: boolean;
+  evidence: string;
+}
+
+export function summarizeWorkflows(input: unknown) {
+  if (!Array.isArray(input) || input.length === 0) throw new Error("Expected a non-empty array of workflow runs");
+  const pairs = new Map<string, { adx?: WorkflowRun; react?: WorkflowRun }>();
+  const runs: WorkflowRun[] = input.map((value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid workflow run");
+    const run = value as WorkflowRun;
+    for (const field of ["task", "model", "trial", "protocol", "evidence"] as const) {
+      if (typeof run[field] !== "string" || !run[field].trim()) throw new Error(`Missing workflow ${field}`);
+    }
+    for (const field of ["inputTokens", "cachedInputTokens", "outputTokens", "durationMs", "attempts"] as const) {
+      if (!Number.isSafeInteger(run[field]) || run[field] < 0) throw new Error(`Invalid workflow ${field}`);
+    }
+    if (run.attempts < 1 || run.cachedInputTokens > run.inputTokens) throw new Error("Invalid attempts or cached token count");
+    if ((run.framework !== "adx" && run.framework !== "react") || typeof run.passed !== "boolean") throw new Error("Invalid framework or acceptance result");
+    const key = JSON.stringify([run.task, run.model, run.trial]);
+    const pair = pairs.get(key) ?? {};
+    if (pair[run.framework]) throw new Error(`Duplicate ${run.framework} run for ${key}`);
+    pair[run.framework] = run;
+    pairs.set(key, pair);
+    return run;
+  });
+  const totalTokens = (run: WorkflowRun) => run.inputTokens + run.outputTokens;
+  const comparisons = Array.from(pairs.values(), (pair) => {
+    if (!pair.adx || !pair.react) throw new Error("Every task/model/trial needs both ADX and React runs");
+    if (pair.adx.protocol !== pair.react.protocol) throw new Error("Paired runs must use the same protocol");
+    const adx = pair.adx;
+    const react = pair.react;
+    const comparable = adx.passed && react.passed && totalTokens(react) > 0;
+    return {
+      task: adx.task, model: adx.model, trial: adx.trial, protocol: adx.protocol,
+      adx: { ...adx, totalTokens: totalTokens(adx) },
+      react: { ...react, totalTokens: totalTokens(react) },
+      savings: comparable ? (totalTokens(react) - totalTokens(adx)) / totalTokens(react) : null,
+    };
+  });
+  const totals = (["adx", "react"] as const).map((framework) => {
+    const selected = runs.filter((run) => run.framework === framework);
+    return {
+      framework, runs: selected.length,
+      passed: selected.filter((run) => run.passed).length,
+      successRate: selected.filter((run) => run.passed).length / selected.length,
+      totalTokens: selected.reduce((sum, run) => sum + totalTokens(run), 0),
+      durationMs: selected.reduce((sum, run) => sum + run.durationMs, 0),
+      attempts: selected.reduce((sum, run) => sum + run.attempts, 0),
+    };
+  });
+  return { scope: "recorded-workflow" as const, comparisons, totals };
 }
 
 function pct(ratio: number): string {
@@ -141,6 +206,13 @@ function loadFileSets(benchmarkDir: string): {
 }
 
 async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  if (args.length > 0) {
+    if (args.length !== 2 || args[0] !== "--workflow") throw new Error("Usage: npm run benchmark -- [--workflow runs.json]");
+    const report = summarizeWorkflows(JSON.parse(readFileSync(args[1], "utf8")));
+    process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    return;
+  }
   // Dynamic import so an encoder import failure throws a plain Node error at run
   // time (dev tool), per the Phase 5 error-handling rule.
   const { encode } = await import("gpt-tokenizer/encoding/o200k_base");

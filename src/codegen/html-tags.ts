@@ -11,6 +11,13 @@
  * include `slot`, which the emitter handles separately as a projection point.
  */
 
+export const BOOLEAN_ATTRIBUTES: ReadonlySet<string> = new Set([
+  "allowfullscreen", "async", "autofocus", "autoplay", "checked", "controls",
+  "default", "defer", "disabled", "formnovalidate", "inert", "ismap", "itemscope",
+  "loop", "multiple", "muted", "nomodule", "novalidate", "open", "playsinline",
+  "readonly", "required", "reversed", "selected",
+]);
+
 export const HTML_TAGS: ReadonlySet<string> = new Set<string>([
   // Document / sections
   "html",

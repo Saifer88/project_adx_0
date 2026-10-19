@@ -7,6 +7,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const fixtureDir = join(here, "..", "fixtures", "user-card");
 
 describe("manifest loader", () => {
+  it("rejects defaults with the wrong declared type", () => {
+    expect(() => parseManifest(JSON.stringify({ name: "X", version: "1", props: { count: { type: "number", default: "wrong" } } }))).toThrow('Prop "count" default must be of type "number"');
+  });
+
   it("loads the UserCard fixture manifest", () => {
     const m = loadManifest(fixtureDir);
     expect(m.name).toBe("UserCard");

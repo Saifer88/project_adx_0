@@ -1,22 +1,19 @@
 /**
- * Sandboxed build-time execution of `behavior.adx.js`.
+ * Trusted build-time execution of `behavior.adx.js`.
  *
  * The M1 compiler scanned `setup`/`get*` by name but never ran them. Phase 1
- * executes `setup(props)` in a hardened `node:vm` context to compute the true
+ * executes `setup(props)` in a timed `node:vm` context to compute the true
  * build-time `state`, and exposes each `get*` as a lazy thunk so a referenced
  * computed value is resolved against that same state object.
  *
- * Security model (documented limit): `vm` is NOT a hard sandbox. We deny
- * ambient capabilities by OMITTING their globals from the context, so
- * `require`/`fs`/`process`/`fetch`/timers/`node:*` simply do not resolve
- * (`ReferenceError`). Every piece of user code runs through a timed
- * `runInContext`, so an infinite loop is aborted by the timeout. The context is
- * a throwaway realm discarded immediately after the build.
+ * Security model: trusted components only. Missing globals are not a security
+ * boundary: host objects and constructors can escape the context. Timed
+ * runInContext calls limit synchronous execution, not all resource use.
  */
 
 import vm from "node:vm";
 import { adxFileError } from "../errors.js";
-import { EXPORT_RE } from "./scan.js";
+import { behaviorDeclarations } from "./scan.js";
 import { bareComputedKey } from "./compute-key.js";
 import type { BehaviorApi } from "./types.js";
 
@@ -90,8 +87,6 @@ export function runSetup(
   });
   const ctx = vm.createContext({ ...seed });
 
-  // (b) Strip ONLY the leading `export ` keyword token of each EXPORT_RE match,
-  // left-to-right, so every scanned spelling survives as a plain declaration.
   const stripped = stripExports(behaviorSrc);
 
   // (d) Inject props and append the single state-producing invocation.
@@ -141,25 +136,13 @@ export function runSetup(
 
 /**
  * Remove the leading `export ` keyword token of each top-level export,
- * preserving the rest of the declaration verbatim. Splices left-to-right using
- * the shared `EXPORT_RE` so `export function|async function|function*|const|
- * let|var` all become plain declarations.
+ * preserving strings, comments, and the rest of each declaration verbatim.
  */
 function stripExports(src: string): string {
-  EXPORT_RE.lastIndex = 0;
-  const spans: Array<{ start: number; end: number }> = [];
-  let match: RegExpExecArray | null;
-  while ((match = EXPORT_RE.exec(src)) !== null) {
-    // The match starts at `export`; remove `export` + the following whitespace
-    // so the next token (function/async/const/…) remains intact.
-    const start = match.index;
-    const afterExport = start + "export".length;
-    let end = afterExport;
-    while (end < src.length && /\s/.test(src[end])) {
-      end++;
-    }
-    spans.push({ start, end });
-  }
+  const spans = behaviorDeclarations(src).map((node) => ({
+    start: node.start,
+    end: node.declaration!.start,
+  }));
   // Splice right-to-left so earlier indices stay valid.
   let out = src;
   for (let i = spans.length - 1; i >= 0; i--) {

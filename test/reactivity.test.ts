@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
 import { parseStructure } from "../src/structure/parser.js";
 import { emitHtml } from "../src/codegen/html.js";
-import { emitGlue } from "../src/codegen/glue.js";
+import { emitComponentGlue } from "../src/codegen/glue.js";
 import { scanBehavior } from "../src/behavior/scan.js";
 import { scopeId } from "../src/codegen/scope.js";
 import { loadTokens } from "../src/tokens/load.js";
@@ -69,13 +69,29 @@ describe("reactivity (jsdom) — handler return patches hooked nodes", () => {
   async function hydrate(
     src: string,
     behaviorSrc: string,
-    state: Record<string, unknown>,
+    state: Record<string, unknown> | Record<string, unknown>[],
     computed: Record<string, unknown> = {},
   ): Promise<Document> {
-    const ctx = makeReactiveCtx(behaviorSrc, state, computed);
-    const { html, hooks } = emitHtml(parseStructure(src, "structure.adx"), ctx);
-    // emitGlue imports from "./behavior.js" — write the sidecar beside the glue.
-    const glue = emitGlue(hooks, ctx);
+    const states = Array.isArray(state) ? state : [state];
+    const instances = states.map((value, instanceIndex) => {
+      const ctx = makeReactiveCtx(behaviorSrc, value, computed);
+      ctx.instanceIndex = instanceIndex;
+      return { ctx, ...emitHtml(parseStructure(src, "structure.adx"), ctx) };
+    });
+    const ctx = instances[0].ctx;
+    const html = instances.map((instance) => instance.html).join("");
+    const glue = emitComponentGlue({
+      absDir: ctx.absDir,
+      scopeId: ctx.scopeId,
+      componentName: ctx.componentName,
+      css: "",
+      hooks: instances[0].hooks,
+      instances: instances.map((instance) => ({
+        instanceIndex: instance.ctx.instanceIndex,
+        props: instance.ctx.mergedProps,
+        hooks: instance.hooks,
+      })),
+    });
 
     const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`);
     const g = globalThis as Record<string, unknown>;
@@ -90,6 +106,63 @@ describe("reactivity (jsdom) — handler return patches hooked nodes", () => {
     );
     return dom.window.document;
   }
+
+  it("keeps state and conditional hooks independent for each instance", async () => {
+    const doc = await hydrate(
+      '<div><span :if="show">{{label}}</span><button @click="onInc">{{count}}</button></div>',
+      'export function setup(props){return {...props}} export function onInc(state){state.count++}',
+      [{ show: false, label: "First", count: 0 }, { show: true, label: "Second", count: 10 }],
+    );
+    const buttons = doc.querySelectorAll("button");
+    buttons[0].click();
+    expect(buttons[0].textContent).toBe("1");
+    expect(buttons[1].textContent).toBe("10");
+    buttons[1].click();
+    expect(buttons[1].textContent).toBe("11");
+    expect(doc.querySelector("span")!.textContent).toBe("Second");
+  });
+
+  it("wires all roots of a fragment", async () => {
+    const doc = await hydrate(
+      '<span>{{count}}</span><button @click="onInc">{{count}}</button>',
+      'export function setup(props){return {...props}} export function onInc(state){state.count++}',
+      { count: 0 },
+    );
+    doc.querySelector("button")!.click();
+    expect(doc.querySelector("span")!.textContent).toBe("1");
+    expect(doc.querySelector("button")!.textContent).toBe("1");
+  });
+
+  it("preserves nested loop text after events", async () => {
+    const doc = await hydrate(
+      '<ul @click="onInc"><li :for="item in items"><span>{{item}}</span></li></ul>',
+      'export function setup(props){return {...props}} export function onInc(state){state.items[0]="Changed"}',
+      { items: ["A", "B"] },
+    );
+    doc.querySelector("ul")!.click();
+    expect(Array.from(doc.querySelectorAll("span"), (span) => span.textContent)).toEqual(["A", "B"]);
+  });
+
+  it("handles boolean attributes and dirty form properties", async () => {
+    const doc = await hydrate(
+      '<div><input type="checkbox" :checked="active"><input :value="name"><button :disabled="active" aria-pressed="false" @click="onToggle">Toggle</button></div>',
+      'export function setup(props){return {...props}} export function onToggle(state){state.active=true;state.name="updated"}',
+      { active: false, name: "initial" },
+    );
+    const checkbox = doc.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const input = doc.querySelector('input:not([type])') as HTMLInputElement;
+    const button = doc.querySelector("button")!;
+    expect(checkbox.checked).toBe(false);
+    expect(button.disabled).toBe(false);
+    checkbox.checked = true;
+    checkbox.checked = false;
+    input.value = "edited";
+    button.click();
+    expect(checkbox.checked).toBe(true);
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(input.value).toBe("updated");
+  });
 
   it("live-patches a state-backed {{count}} after a handler mutates state", async () => {
     const behaviorSrc =

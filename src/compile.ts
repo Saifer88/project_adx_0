@@ -7,21 +7,20 @@
  * (it writes nothing either — the CLI is responsible for I/O).
  *
  * Pipeline: manifest -> structure parse -> behavior scan -> tokens -> emit.
- * The build-time evaluation scope is derived from manifest prop defaults (both
- * `state` and `props`), which is enough to resolve the documented examples at
- * build time while keeping the compiler pure (we never execute `setup`).
+ * The build-time evaluation scope comes from merged props and execution of
+ * trusted setup/computed functions. Both build and check execute component code.
  */
 
 import { readFileSync } from "node:fs";
 import { join, basename, resolve } from "node:path";
-import { loadManifest } from "./manifest/load.js";
+import { loadManifest, validatePropValue } from "./manifest/load.js";
 import { parseStructure } from "./structure/parser.js";
 import { scanBehavior } from "./behavior/scan.js";
 import { runSetup } from "./behavior/run.js";
 import { loadTokens } from "./tokens/load.js";
-import { emitHtml } from "./codegen/html.js";
+import { emitHtml, type SlotContext } from "./codegen/html.js";
 import { transformCss } from "./codegen/css.js";
-import { emitGlue } from "./codegen/glue.js";
+import { emitGlue, emitComponentAssets, type ComponentAsset } from "./codegen/glue.js";
 import { scopeId } from "./codegen/scope.js";
 import { createBuild } from "./codegen/compose.js";
 import { repoRoot } from "./codegen/scope-location.js";
@@ -29,6 +28,7 @@ import { adxFileError } from "./errors.js";
 import type { CodegenContext, BuildState } from "./codegen/context.js";
 import type { EvalScope } from "./expr/evaluate.js";
 import type { Manifest } from "./manifest/types.js";
+import type { TokenTable } from "./tokens/types.js";
 
 /** Options for {@link compileComponent}. */
 export interface CompileOptions {
@@ -56,6 +56,8 @@ export interface CompileOptions {
    * Internal.
    */
   build?: BuildState;
+  slots?: SlotContext;
+  tokens?: TokenTable;
 }
 
 /**
@@ -86,6 +88,7 @@ export interface CompiledComponent {
   html: string;
   css: string;
   glue: string;
+  components: ComponentAsset[];
   /** The manifest (so the CLI can name the output directory). */
   manifest: Manifest;
 }
@@ -99,10 +102,13 @@ export function compileComponent(
 ): CompiledComponent {
   const inst = compileInstance(dir, opts);
   const ctx = inst.ctx;
+  const components = emitComponentAssets(inst.build);
+  const imports = components.map((component) => `import ${JSON.stringify(`./${component.stem}.glue.js`)};`).join("\n");
   return {
     html: wrapDocument(inst.body, ctx),
     css: inst.css,
-    glue: inst.glue,
+    glue: imports ? `${imports}\n${inst.glue}` : inst.glue,
+    components,
     manifest: inst.manifest,
   };
 }
@@ -117,7 +123,7 @@ export function compileComponent(
 export function compileInstance(
   dir: string,
   opts: CompileOptions = {},
-): CompiledInstance & { ctx: CodegenContext } {
+): CompiledInstance & { ctx: CodegenContext; build: BuildState } {
   const manifest = loadManifest(dir);
 
   const structureSrc = readFileSync(join(dir, "structure.adx"), "utf8");
@@ -129,7 +135,7 @@ export function compileInstance(
   const styleSrc = readFileSync(join(dir, "style.adx.css"), "utf8");
 
   const tokensPath = resolve(opts.tokensPath ?? DEFAULT_TOKENS);
-  const tokens = loadTokens(tokensPath);
+  const tokens = opts.tokens ?? loadTokens(tokensPath);
 
   // Three-layer merge (manifest defaults <- data) + required-prop validation,
   // then run setup() in the sandbox to compute true build-time state.
@@ -169,8 +175,13 @@ export function compileInstance(
   // composed descendant that depends back on it is detected (chain starts at
   // the top-level component).
   build.cycleStack.push(absDir);
-  const { html, hooks } = emitHtml(ast, ctx, build);
-  build.cycleStack.pop();
+  let emitted: ReturnType<typeof emitHtml>;
+  try {
+    emitted = emitHtml(ast, ctx, build, opts.slots);
+  } finally {
+    build.cycleStack.pop();
+  }
+  const { html, hooks } = emitted;
   const ownCss = transformCss(styleSrc, ctx);
   const glue = emitGlue(hooks, ctx);
 
@@ -196,6 +207,7 @@ export function compileInstance(
     absDir,
     mergedProps,
     ctx,
+    build,
   };
 }
 
@@ -206,13 +218,9 @@ export function checkComponent(dir: string, opts: CompileOptions = {}): void {
 
 /** Build the build-time props object from manifest prop defaults. */
 function defaultProps(manifest: Manifest): Record<string, unknown> {
-  const props: Record<string, unknown> = {};
-  for (const [name, def] of Object.entries(manifest.props)) {
-    if (def.default !== undefined) {
-      props[name] = def.default;
-    }
-  }
-  return props;
+  return Object.fromEntries(Object.entries(manifest.props)
+    .filter(([, definition]) => definition.default !== undefined)
+    .map(([name, definition]) => [name, definition.default]));
 }
 
 /**
@@ -230,12 +238,10 @@ export function resolveProps(
   data: Record<string, unknown> | undefined,
   source: PropSource,
 ): Record<string, unknown> {
-  const merged: Record<string, unknown> = defaultProps(manifest);
-  if (data) {
-    for (const [key, value] of Object.entries(data)) {
-      merged[key] = value;
-    }
-  }
+  const merged = {
+    ...defaultProps(manifest),
+    ...Object.fromEntries(Object.entries(data ?? {}).filter(([, value]) => value !== undefined)),
+  };
 
   for (const [name, def] of Object.entries(manifest.props)) {
     if (
@@ -246,6 +252,9 @@ export function resolveProps(
         "manifest.json",
         `Missing required prop "${name}" (${requiredHint(source)})`,
       );
+    }
+    if (Object.prototype.hasOwnProperty.call(merged, name)) {
+      validatePropValue(name, def.type, merged[name]);
     }
   }
 
@@ -273,6 +282,10 @@ function requiredHint(source: PropSource): string {
  * as a deferred module (never blocking first paint), and keep the component
  * markup inside `<main>`.
  */
+export function serializeScriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 function wrapDocument(body: string, ctx: CodegenContext): string {
   const seo = ctx.manifest.seo ?? {};
   const title = escapeHtml(seo.title ?? ctx.manifest.name);
@@ -290,7 +303,7 @@ function wrapDocument(body: string, ctx: CodegenContext): string {
   ].join("\n");
 
   const jsonLd = seo.schema
-    ? `\n  <script type="application/ld+json">${JSON.stringify({
+    ? `\n  <script type="application/ld+json">${serializeScriptJson({
         "@context": "https://schema.org",
         "@type": seo.schema,
         name: ctx.manifest.name,

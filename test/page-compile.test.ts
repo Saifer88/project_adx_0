@@ -1,13 +1,32 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compilePage, checkPage } from "../src/page/compile.js";
-import { siteDir, tokensPath } from "./helpers.js";
+import { fixtureDir, siteDir, tokensPath } from "./helpers.js";
 
 const opts = { tokensPath };
 
 describe("compilePage — two-page fixture site", () => {
+  it("assigns stable distinct assets to same-basename components", () => {
+    const dir = mkdtempSync(join(tmpdir(), "adx-assets-"));
+    try {
+      const paths = [join(dir, "first", "card"), join(dir, "second", "card")];
+      for (const path of paths) cpSync(fixtureDir, path, { recursive: true });
+      const pageFile = join(dir, "index.json");
+      writeFileSync(pageFile, JSON.stringify({ page: "index", title: "Pair", description: "Pair", components: paths.map((use) => ({ use, data: { name: use } })) }));
+      const result = compilePage(pageFile, opts);
+      expect(new Set(result.components.map((component) => component.stem)).size).toBe(2);
+      expect(compilePage(pageFile, opts).components).toEqual(result.components);
+      for (const component of result.components) {
+        expect(result.glue).toContain(`import "./${component.stem}.glue.js";`);
+        expect(component.glue).toContain(`from "./${component.stem}.behavior.js";`);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   const index = compilePage(join(siteDir, "index.json"), opts);
   const about = compilePage(join(siteDir, "about.json"), opts);
 

@@ -66,7 +66,7 @@ example; sandboxed `setup()` described), architecture (build-time sandbox +
 reactivity + security note), comparison / token-efficiency (Measured table),
 roadmap + README rows — all updated in this milestone.
 
-### How `setup()` runs at build time — DECIDED: sandboxed execution
+### How `setup()` runs at build time: Trusted Execution
 To emit real content the compiler must obtain each component's state, which comes
 from `setup()` in the user's `behavior.adx.js`. The code executed is the **user's**,
 run by the compiler, on the machine running `adx build` (the user's laptop or CI).
@@ -76,14 +76,21 @@ Risk only arises when the person running the build did not write the component
 naive compiler would run whatever that `setup()` contains, including malicious
 filesystem/network calls.
 
-**Decision: run the real `setup()` inside a hardened sandbox** (Node `vm` context):
-no `require`, no `fs`, no network, no `process`, with an execution timeout. Normal
-`setup()` logic (property assignments, `||` defaults, simple expressions) works;
-dangerous calls fail because those globals do not exist in the sandbox. Chosen over
-a restricted declarative subset because real components need real `setup()` logic;
-the subset would frustrate the agent-user ADX targets. Document that compiling an
-untrusted third-party component carries the same caution as running any untrusted
-build tool.
+**Decision: execute trusted `setup()` code in a Node `vm` context with a timeout.**
+Omitted globals do not prevent access to the host via constructors. This is not a
+security sandbox. Both `build` and `check` execute code; untrusted components
+require external isolation with restricted filesystem, network, credentials and
+resources. A separate process alone does not supply those protections.
+
+### Reliability Follow-up
+
+- Isolated instance state and per-instance hook plans, including conditional DOM.
+- Correct boolean/form bindings and frozen nested loop content.
+- Acorn-based behavior parsing, typed props/defaults and safe JSON-LD.
+- One compilation pipeline for parents and children; collision-safe sidecars in
+  both standalone and page builds.
+- Chromium CLI regressions on desktop/mobile and CI on Node 22/24.
+- Working Quick Start and explicit labels on unavailable pattern/lifecycle APIs.
 
 ### Sequencing — DECIDED: all phases in one milestone
 Build Phases 1-6 together as a single M2, rather than splitting into M2a/M2b.
@@ -103,6 +110,12 @@ until the benchmark is broadened. Needed tasks:
 Then update the docs with whichever figure the broadened benchmark actually shows —
 raising or lowering the claim to match the measurement, not the reverse.
 
+Recording/reporting support is now available through
+`npm run benchmark -- --workflow runs.json`. Task prompts and acceptance criteria
+are in `benchmark/tasks.json`; the protocol is in `benchmark/README.md`.
+Actual paired agent runs still need to be collected. No end-to-end savings are
+claimed from the source-reading measurement.
+
 ## Later milestones (unscheduled)
 Pattern library, dev server + hot reload, `adx create`/`tokens`/`pattern` CLI,
 compile-time WCAG-AA audit, sitemap.xml/robots.txt generation, bundle-size
@@ -112,4 +125,4 @@ budgets, VS Code extension, browser devtools. See the README roadmap table.
 The repo is one npm package (`adx`). Intended flow: push to GitHub → a GitHub
 Action builds (`npm run build`) and publishes to npm → users `npm install -g adx`
 and run `adx build <their-component>` to compile their own code. Not yet published
-(`0.1.0-alpha`); CI publish pipeline is not set up yet.
+(`0.1.0-alpha`); verification CI is configured, but publishing is not automated.

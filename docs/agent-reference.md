@@ -4,6 +4,16 @@
 
 This document is the single source of truth for AI agents working with ADX. It is structured for maximum token efficiency and fast scanning.
 
+## Current Capabilities
+
+Implemented: `build`/`check`, typed props/defaults, static pages/composition/slots,
+scoped CSS, per-instance text/attribute updates, and standalone child assets.
+Not implemented: `@adx/patterns`, lifecycle execution, scaffolding, dev server,
+automatic accessibility audits, or structural/computed reactivity.
+The planned pattern examples below are proposals, not runnable APIs.
+Both `build` and `check` execute trusted component code; `node:vm` is not a
+security boundary. See the build-time execution section before compiling dependencies.
+
 ## Quick Reference Card
 
 ```
@@ -12,7 +22,7 @@ COMPONENT CREATION
   2. Create 4 files: structure.adx, behavior.adx.js, style.adx.css, manifest.json
   3. Define props in manifest.json first
   4. Build structure.adx (refer to props)
-  5. Add behavior.adx.js (pure functions)
+  5. Add behavior.adx.js (deterministic setup, synchronous handlers)
   6. Style with tokens in style.adx.css
 
 COMPONENT MODIFICATION
@@ -21,7 +31,7 @@ COMPONENT MODIFICATION
   3. Edit only relevant .adx file
   4. Update manifest.json if API changed
 
-PATTERN USAGE
+PLANNED PATTERN API (NOT AVAILABLE)
   import { PatternName } from '@adx/patterns'
   Use as base, extend as needed
   Patterns: grid, stack, form, table, modal, toast, nav, tabs
@@ -75,7 +85,7 @@ export function onEventName(state, event) {
 ```
 
 **Rules**:
-- All exports are pure functions
+- Keep setup deterministic; event handlers may mutate their own state
 - `setup()` required, returns initial state
 - Event handlers: `on{EventName}(state, event)`
 - Use `emit(name, data)` for custom events
@@ -182,7 +192,7 @@ tokens.breakpoint-lg  /* 1024px */
 tokens.breakpoint-xl  /* 1280px */
 ```
 
-## Built-In Patterns
+## Planned Patterns (Not Implemented)
 
 ### Layout Patterns
 
@@ -361,15 +371,16 @@ toast.info('Info message')
 
 ## Token Optimization Tips
 
-1. **Read manifest.json first** before parsing component source (saves 200+ tokens)
+1. **Read manifest.json first** before parsing component source
 2. **Edit single file** per concern (don't read all 4 files unless needed)
-3. **Use patterns** instead of building from scratch (saves 400+ tokens)
+3. **Reuse existing project components**; the framework pattern library is planned
 4. **Reference this doc** for syntax (don't guess abbreviations)
 5. **Emit minimal explanations** to user (code + 1 sentence)
 
 ## UX/UI Baseline (always apply)
 
-Every component meets this baseline by default. Patterns carry it for free; raw components must honor it.
+Authors should apply this baseline. The compiler does not currently enforce it,
+and the planned pattern library is not available.
 
 ```
 A11Y   decorative icons aria-hidden; meaningful icons get text alt; icon-only
@@ -443,7 +454,7 @@ Build output per component:
   No vDOM, no `createElement`.
 - `behavior.js` — `behavior.adx.js` copied verbatim (plain ESM); the glue's
   import target. Its exports are name-scanned at build time (for handler wiring),
-  and `setup()`/`get*()` are **executed in a hardened sandbox** at build time to
+  and `setup()`/`get*()` are **executed as trusted code in a Node VM context** at build time to
   compute real state (see Build-time `setup()` below).
 
 `scopeId` is deterministic: `c` + first 7 hex of `sha256(name \0 location)`. For a
@@ -468,18 +479,25 @@ component that has a required prop with no default now **fails** (by design — 
 surfaces the SEO-breaking empty element). Check such a child via a page that uses
 it, or pass sample `--data`.
 
-### Build-time `setup()` (sandboxed)
+### Build-time `setup()` (Trusted Code)
 
-To bake real content into the HTML, the compiler runs the component's `setup()`
-(and any referenced `get*()`) at build time inside a Node `vm` sandbox: no
-`require`/`module`/`process`/`fetch`/`Buffer`/timers and no `node:` builtins, with
-a 1000ms timeout. Normal logic works; a dangerous call fails because the global is
-absent. The browser glue re-runs the **same** merged props through `setup()`, so
-first paint equals the crawled HTML. Caveats: a non-deterministic `setup()` (e.g.
-`Date.now()`) can differ between build and first paint; `import` statements in
-behavior files are unsupported. **Security:** the sandbox narrows but does not
-*eliminate* trust — compiling an untrusted component is like running any untrusted
-build tool (see architecture).
+Both `build` and `check` run `setup()` and referenced `get*()` in a Node `vm`
+context with a 1000ms execution timeout. Some globals are absent, but host objects
+and constructor access can escape that context. It does not prevent filesystem,
+network or process access by untrusted code. Compile only trusted components;
+untrusted builds require external OS/container isolation, restricted credentials,
+filesystem/network access and resource limits. A worker or child process alone
+does not provide those restrictions.
+
+The browser re-runs `setup()` with the same props: keep it deterministic and
+synchronous. Imports, re-exports and default exports are unsupported. Acorn
+parses named function/variable declarations; comments and strings are preserved.
+The historical public `EXPORT_RE` export is retained for compatibility only.
+
+Declared props and defaults must match their type; numbers must be finite,
+`object` excludes arrays and null, and null is rejected for all declared types.
+Undefined input is treated as absent (a default can still apply). Unknown props
+are preserved for compatibility but are not type-validated.
 
 Failure messages (all line-less, on `behavior.adx.js`):
 `setup() failed: <message>`, `setup() exceeded time budget (1000ms)`,
@@ -536,7 +554,13 @@ and ownership of projected nodes. Key points:
 - The same component used N times → N independent instances, each with its own
   `data-adx-i`, hook ids, state, root, and event/emit/patch routing.
 - A standalone `adx build <dir>` composes children into one component's output;
-  full per-child behavior/glue sidecars are emitted on the **page** path.
+  full per-child behavior/glue sidecars are emitted for both standalone and page
+  builds. Same-basename assets receive a stable scope-based suffix to avoid overwrites.
+
+Each instance stores its own hooks, including when build-time branches differ.
+Boolean HTML attributes are omitted for false/null/undefined; ARIA attributes
+remain strings. Runtime updates also synchronize form `value`, `checked` and
+`selected` properties. Loop descendants retain their build-time content.
 
 ## Reactivity contract
 

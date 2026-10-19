@@ -1,7 +1,7 @@
 /**
  * Behavior export scanner (`behavior.adx.js`).
  *
- * Finds exports BY NAME only — no deep JS parse. We locate top-level
+ * Parses JavaScript and classifies top-level
  * `export function <name>` and `export const <name>` declarations and classify
  * each by naming convention:
  *   - `setup`                     -> the required state factory
@@ -13,18 +13,42 @@
  */
 
 import type { BehaviorApi } from "./types.js";
+import { parse, type ExportNamedDeclaration } from "acorn";
+import { adxError, adxFileError } from "../errors.js";
 
 const LIFECYCLE = new Set(["onMounted", "onUnmounted", "onUpdated"]);
 
-/**
- * Matches a top-level `export` declaration and captures the declared name.
- * Shared with the sandbox export-strip (`src/behavior/run.ts`), which removes
- * only the leading `export ` keyword of each match so every spelling
- * (`export function`, `export async function`, `export function*`,
- * `export const|let|var`) survives as a plain declaration.
- */
 export const EXPORT_RE =
   /\bexport\s+(?:async\s+)?(?:function\s*\*?|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
+
+export function behaviorDeclarations(
+  src: string,
+  file = "behavior.adx.js",
+): ExportNamedDeclaration[] {
+  let program;
+  try {
+    program = parse(src, { ecmaVersion: "latest", sourceType: "module", locations: true });
+  } catch (error) {
+    const failure = error as { message: string; loc?: { line: number } };
+    throw adxError(file, failure.loc?.line ?? 1, failure.message);
+  }
+  const exports: ExportNamedDeclaration[] = [];
+  for (const node of program.body) {
+    if (node.type === "ImportDeclaration" || node.type === "ExportAllDeclaration" || node.type === "ExportDefaultDeclaration") {
+      throw adxFileError(file, "Use named function or variable exports; imports and re-exports are unsupported");
+    }
+    if (node.type !== "ExportNamedDeclaration") continue;
+    const declaration = node.declaration;
+    if (!declaration || (declaration.type !== "FunctionDeclaration" && declaration.type !== "VariableDeclaration")) {
+      throw adxFileError(file, "Use named function or variable export declarations");
+    }
+    if (declaration.type === "VariableDeclaration" && declaration.declarations.some((entry) => entry.id.type !== "Identifier")) {
+      throw adxFileError(file, "Destructured exports are unsupported");
+    }
+    exports.push(node);
+  }
+  return exports;
+}
 
 /**
  * Scan behavior source into a classified {@link BehaviorApi}.
@@ -32,13 +56,17 @@ export const EXPORT_RE =
  * @param src  behavior.adx.js source text
  * @param _file file name (reserved for future diagnostics; unused in M1)
  */
-export function scanBehavior(src: string, _file?: string): BehaviorApi {
-  void _file;
+export function scanBehavior(src: string, file?: string): BehaviorApi {
   const names = new Set<string>();
-  EXPORT_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = EXPORT_RE.exec(src)) !== null) {
-    names.add(match[1]);
+  for (const node of behaviorDeclarations(src, file)) {
+    const declaration = node.declaration!;
+    if (declaration.type === "FunctionDeclaration" && declaration.id) {
+      names.add(declaration.id.name);
+    } else if (declaration.type === "VariableDeclaration") {
+      for (const entry of declaration.declarations) {
+        if (entry.id.type === "Identifier") names.add(entry.id.name);
+      }
+    }
   }
 
   const events: string[] = [];

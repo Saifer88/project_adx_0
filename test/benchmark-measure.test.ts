@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   measure,
   formatTable,
+  summarizeWorkflows,
+  type WorkflowRun,
   type Encoder,
   type TaskFileSet,
 } from "../benchmark/run.js";
@@ -13,6 +15,37 @@ import {
  */
 const wordEncoder: Encoder = (text) =>
   text.trim() === "" ? [] : (text.trim().split(/\s+/) as unknown as number[]);
+
+describe("recorded workflow comparison", () => {
+  const adx: WorkflowRun = { task: "add-prop", model: "test-model", trial: "1", protocol: "test-v1", framework: "adx", inputTokens: 100, cachedInputTokens: 40, outputTokens: 20, durationMs: 1000, attempts: 1, passed: true, evidence: "test-only" };
+  const react: WorkflowRun = { ...adx, framework: "react", inputTokens: 200, outputTokens: 40 };
+
+  it("counts input and output without double-counting cached input", () => {
+    const report = summarizeWorkflows([adx, react]);
+    expect(report.comparisons[0].adx.totalTokens).toBe(120);
+    expect(report.comparisons[0].savings).toBe(0.5);
+    expect(report.totals[0]).toMatchObject({ totalTokens: 120, durationMs: 1000, attempts: 1, successRate: 1 });
+  });
+
+  it("retains failed-run costs without presenting failure as savings", () => {
+    const report = summarizeWorkflows([{ ...adx, passed: false, attempts: 3 }, react]);
+    expect(report.comparisons[0].savings).toBeNull();
+    expect(report.totals[0]).toMatchObject({ totalTokens: 120, attempts: 3, successRate: 0 });
+  });
+
+  it("rejects unmatched, duplicate, and incomparable runs", () => {
+    expect(() => summarizeWorkflows([adx])).toThrow(/both ADX and React/);
+    expect(() => summarizeWorkflows([adx, adx, react])).toThrow(/Duplicate/);
+    expect(() => summarizeWorkflows([adx, { ...react, protocol: "other" }])).toThrow(/same protocol/);
+  });
+
+  it("requires valid counts and evidence", () => {
+    expect(() => summarizeWorkflows([{ ...adx, inputTokens: -1 }, react])).toThrow(/inputTokens/);
+    expect(() => summarizeWorkflows([{ ...adx, cachedInputTokens: 101 }, react])).toThrow(/cached token/);
+    expect(() => summarizeWorkflows([{ ...adx, evidence: "" }, react])).toThrow(/evidence/);
+    expect(() => summarizeWorkflows([])).toThrow(/non-empty/);
+  });
+});
 
 describe("measure (pure)", () => {
   const fileSets: TaskFileSet[] = [

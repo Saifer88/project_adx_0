@@ -8,6 +8,11 @@ function run(src: string, props: Record<string, unknown> = {}) {
 }
 
 describe("runSetup — benign setup", () => {
+  it("preserves export-like text in string values", () => {
+    const { state } = run('export function setup(){return {text:"export function onFake(){}"}}');
+    expect(state.text).toBe("export function onFake(){}");
+  });
+
   it("runs a plain setup and returns its state", () => {
     const { state } = run(
       "export function setup(p){ return { greeting: 'hi ' + p.name } }",

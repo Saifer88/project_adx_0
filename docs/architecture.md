@@ -110,7 +110,7 @@ Compact HTML-like syntax optimized for token efficiency:
 
 ### Behavior File (`.behavior.adx.js`)
 
-Pure functions, no classes:
+Deterministic setup and synchronous state-mutating handlers, no classes:
 
 ```js
 export function setup(props) {
@@ -127,7 +127,7 @@ export function onClick(state, event) {
 ```
 
 **Features**:
-- Pure functions (easy to reason about)
+- Explicit setup and per-instance state ownership
 - Explicit state returns
 - Explicit event handlers
 - No reactivity magic
@@ -177,9 +177,9 @@ Public API contract:
 }
 ```
 
-## Mid-Level Patterns (Built-In)
+## Mid-Level Patterns (Planned)
 
-ADX includes professionally designed patterns that agents can use directly:
+The following library is a design proposal, not a shipped package:
 
 - **Layout**: `grid`, `stack`, `sidebar`, `cluster`
 - **Forms**: `form`, `field`, `input-group`, `validation`
@@ -291,26 +291,24 @@ single-component build (M1-stable) and the repo-relative POSIX path for page and
 composed children, so two deps with the same basename in different folders never
 collide.
 
-### Build-time execution of `setup()` (sandboxed)
+### Build-time execution of `setup()` (Trusted Code)
 
-To emit *real* content (not just manifest defaults), the compiler must know each
-component's state, which comes from the user's `setup()`. M2 runs it at build time
-inside a Node `vm` context seeded with a minimal, frozen set of globals (`Object`,
-`Array`, `Math`, `JSON`, `Date`, …) and **nothing else** — no `require`, `module`,
-`process`, `fetch`, `Buffer`, timers, or `node:` builtins — under a 1000ms
-timeout. Normal `setup()` logic works; a dangerous call fails with a
-`ReferenceError` because the global is simply absent. The browser glue re-runs the
-**same merged props** through `setup()`, so the hydrated DOM matches the crawled
-HTML (a non-deterministic `setup()` is the author's responsibility).
+To emit real content, `build` and `check` execute `setup()` and referenced
+computed functions in a Node `vm` context under a 1000ms timeout. The browser
+re-runs setup with the same merged props; determinism is the author's responsibility.
 
-**Compiling runs user code — security note.** Running `adx build` executes the
-component's `setup()` on the build machine. The `vm` sandbox **narrows** this
-(ambient capabilities are removed) but does **not** eliminate the trust boundary:
-Node documents `vm` as not a hardened security sandbox (prototype/`constructor`
-escapes to the host realm are possible for a determined attacker). So compiling an
-untrusted third-party component carries the same caution as running any untrusted
-build tool. If stronger isolation is ever required, a child-process or worker
-boundary is the upgrade path (not in M2).
+**Compiling runs trusted user code.** Removing global names does not remove host
+capabilities: exposed objects and their constructors can reach the host realm.
+Node `vm` is not a security sandbox, and the timeout does not bound all resource
+use. Do not compile untrusted dependencies in a privileged environment.
+Untrusted builds need OS/container isolation with filesystem/network restrictions,
+no credentials and resource limits. A child process or worker alone is insufficient.
+
+Top-level and composed components share `compileInstance`; the composer supplies
+props, tokens and projected slots. Each hydration instance carries its own hooks
+and lexically scoped state. Asset emission is shared by page and standalone builds,
+with collision-safe names. Acorn supplies export source ranges; JSON-LD escapes
+HTML script delimiters without changing parsed metadata.
 
 ### Reactivity (patch model, no vDOM)
 
@@ -359,7 +357,8 @@ Every component automatically gets:
 - Semantic token theming (`surface-*`, `text-*`), never per-component hardcoded hex.
 - Motion is subtle by default, exits faster than it enters, and respects reduced-motion.
 
-Built-in patterns (form, modal, toast, table, nav, tabs) carry these guarantees so components inherit them for free.
+The planned pattern library aims to provide these guarantees. They are currently
+authoring requirements, not compiler-enforced guarantees.
 
 ---
 

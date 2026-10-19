@@ -18,9 +18,9 @@
 import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { adxFileError } from "../errors.js";
-import { escapeHtml, indentBlock, compileInstance } from "../compile.js";
+import { escapeHtml, indentBlock, compileInstance, serializeScriptJson } from "../compile.js";
 import { createBuild } from "../codegen/compose.js";
-import { emitComponentGlue } from "../codegen/glue.js";
+import { emitComponentAssets, type ComponentAsset } from "../codegen/glue.js";
 import { repoRoot, scopeLocation } from "../codegen/scope-location.js";
 import { loadPage } from "./load.js";
 import type { PageManifest } from "./types.js";
@@ -32,14 +32,7 @@ export interface CompilePageOptions {
 }
 
 /** One used component on the page: its output filename stem + behavior src. */
-export interface PageComponentAsset {
-  /** Filename stem beside the page, e.g. `user-card` -> `user-card.behavior.js`. */
-  stem: string;
-  /** The resolved absolute component directory. */
-  absDir: string;
-  /** The emitted per-component glue module (imports its behavior, hydrates). */
-  glue: string;
-}
+export type PageComponentAsset = ComponentAsset;
 
 /** The compiled page: a full document plus the assets written beside it. */
 export interface CompiledPage {
@@ -118,6 +111,7 @@ export function compilePage(
     distinct.instances.push({
       instanceIndex: inst.ctx.instanceIndex,
       props: inst.mergedProps,
+      hooks: inst.hooks,
     });
   }
 
@@ -127,15 +121,7 @@ export function compilePage(
     .map((d) => build.distinct.get(d)!.css)
     .join("\n");
 
-  const components: PageComponentAsset[] = build.order.map((d) => {
-    const c = build.distinct.get(d)!;
-    const stem = stemOf(d);
-    return {
-      stem,
-      absDir: d,
-      glue: emitComponentGlue(c, `./${stem}.behavior.js`),
-    };
-  });
+  const components = emitComponentAssets(build);
 
   // The page entry imports each distinct component's hydration module so a
   // single <script type="module" src="glue.js"> wires the whole page.
@@ -144,11 +130,6 @@ export function compilePage(
   const html = wrapPageDocument(bodies, page);
 
   return { page, html, css, glue, components };
-}
-
-/** The output filename stem for a component (its directory basename). */
-function stemOf(absDir: string): string {
-  return absDir.split(/[/\\]/).filter(Boolean).pop() ?? "component";
 }
 
 /**
@@ -186,7 +167,7 @@ export function wrapPageDocument(bodies: string[], page: PageManifest): string {
   ].join("\n");
 
   const jsonLd = page.schema
-    ? `\n  <script type="application/ld+json">${JSON.stringify({
+    ? `\n  <script type="application/ld+json">${serializeScriptJson({
         "@context": "https://schema.org",
         "@type": page.schema,
         name: page.title,

@@ -17,10 +17,12 @@ Detailed comparison of ADX vs. React, Vue, and Svelte for AI agent efficiency.
 > yet proven** — and the ~13-14% here does **not** disprove it, because this
 > benchmark does not measure the workflow the target describes. The true figure
 > for real agent work is **unmeasured**; a broader benchmark is needed to settle
-> it (see `docs/roadmap.md`). Treat ~13-14% as "the floor we can already prove on
-> the least favorable task," not as the expected real-world result.
+> it (see `docs/roadmap.md`). The ~13-14% result is neither a guaranteed floor nor
+> a prediction; broader workloads may show larger or smaller savings.
 
 The numbers in the rest of this document are **hand estimates, pre-measurement**.
+Pattern-library and automatic-quality claims describe planned capabilities, not
+the current compiler. See `benchmark/README.md` for the recorded-workflow protocol.
 Milestone 2 added a reproducible benchmark — run `npm run benchmark` to regenerate
 `benchmark/results.json`. It tokenizes the real `user-card` ADX fixture against a
 faithful, minimal React equivalent (same DOM/text, props, and styling surface)

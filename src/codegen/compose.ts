@@ -14,19 +14,12 @@
  * "Per-instance identity" section).
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { loadManifest } from "../manifest/load.js";
-import { parseStructure } from "../structure/parser.js";
-import { scanBehavior } from "../behavior/scan.js";
-import { runSetup } from "../behavior/run.js";
-import { transformCss } from "./css.js";
-import { scopeId } from "./scope.js";
 import { scopeLocation } from "./scope-location.js";
 import { adxError, adxFileError } from "../errors.js";
-import { resolveProps } from "../compile.js";
-import { emitHtml } from "./html.js";
-import type { SlotContext } from "./html.js";
+import { compileInstance } from "../compile.js";
 import type { ElementNode, Node } from "../structure/ast.js";
 import type { EvalScope } from "../expr/evaluate.js";
 import type { Manifest } from "../manifest/types.js";
@@ -125,69 +118,35 @@ function emitComponentInstance(
     );
   }
 
-  // Load the child's four-file component.
   const childManifest = loadManifest(childDir);
-  const structureSrc = readFileSync(join(childDir, "structure.adx"), "utf8");
-  const childAst = parseStructure(structureSrc, "structure.adx");
-  const behaviorSrc = readFileSync(join(childDir, "behavior.adx.js"), "utf8");
-  const behavior = scanBehavior(behaviorSrc, "behavior.adx.js");
-  const styleSrc = readFileSync(join(childDir, "style.adx.css"), "utf8");
-
-  // Evaluate the custom element's :prop bindings + plain attrs against the
-  // PARENT scope to build concrete child props.
-  const childData = evalChildProps(element, parentScope);
-  const mergedProps = resolveProps(childManifest, childData, "composed");
-  const { state, computed } = runSetup(behaviorSrc, mergedProps, behavior);
-  const childScope: EvalScope = { state, props: mergedProps, computed };
-
-  // The child's OWN deterministic scope id, keyed by a stable repo-relative
-  // location so same-basename deps in different folders never cross-talk.
-  const location = scopeLocation(build.repoRoot, childDir);
-  const childScopeId = scopeId(childManifest.name, location);
-
-  // Assign the next page-global instance ordinal.
-  const instanceIndex = build.nextInstanceIndex++;
-
-  const childCtx: CodegenContext = {
-    componentName: childManifest.name,
-    scopeId: childScopeId,
-    scope: childScope,
+  const inst = compileInstance(childDir, {
+    data: evalChildProps(element, parentScope),
+    propSource: "composed",
+    scopeLocation: scopeLocation(build.repoRoot, childDir),
     tokens: parentCtx.tokens,
-    behavior,
-    manifest: childManifest,
-    mergedProps,
-    instanceIndex,
-    absDir: childDir,
-  };
-
-  // Group the parent-provided children of the custom element by target slot.
-  const projected = buildProjected(element, childManifest);
-  const slots: SlotContext = { projected, emitParent, parentScope };
-
-  // Recurse: push onto the cycle stack while compiling this child's subtree.
-  build.cycleStack.push(childDir);
-  const { html, hooks } = emitHtml(childAst, childCtx, build, slots);
-  build.cycleStack.pop();
+    tokensPath: build.tokensPath,
+    build,
+    slots: { projected: buildProjected(element, childManifest), emitParent, parentScope },
+  });
 
   // Register the distinct component (CSS/glue emitted once per abs dir) and
   // record this instance's merged props.
   let distinct = build.distinct.get(childDir);
   if (!distinct) {
-    const css = transformCss(styleSrc, childCtx);
     distinct = {
       absDir: childDir,
-      scopeId: childScopeId,
+      scopeId: inst.scopeId,
       componentName: childManifest.name,
-      css,
-      hooks,
+      css: inst.css,
+      hooks: inst.hooks,
       instances: [],
     };
     build.distinct.set(childDir, distinct);
     build.order.push(childDir);
   }
-  distinct.instances.push({ instanceIndex, props: mergedProps });
+  distinct.instances.push({ instanceIndex: inst.ctx.instanceIndex, props: inst.mergedProps, hooks: inst.hooks });
 
-  return html;
+  return inst.body;
 }
 
 /**

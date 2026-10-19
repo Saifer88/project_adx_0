@@ -14,6 +14,26 @@ function manifest(props: Manifest["props"]): Manifest {
 }
 
 describe("resolveProps — merge precedence", () => {
+  it.each([
+    ["number", "wrong"], ["number", NaN], ["number", Infinity],
+    ["string", 12], ["boolean", "false"], ["array", {}], ["object", []],
+    ["object", null], ["string", null],
+  ] as const)("rejects invalid %s values", (type, value) => {
+    expect(() => resolveProps(manifest({ value: { type } }), { value }, "standalone")).toThrow(/must be of type/);
+  });
+
+  it("allows unknown props and treats undefined as absent", () => {
+    const schema = manifest({ count: { type: "number", default: 3 } });
+    expect(resolveProps(schema, { count: undefined, extra: "ok" }, "page")).toEqual({ count: 3, extra: "ok" });
+  });
+
+  it("does not let a __proto__ key alter the props prototype", () => {
+    const result = resolveProps(manifest({}), JSON.parse('{"__proto__":{"polluted":true}}'), "standalone");
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(result.polluted).toBeUndefined();
+    expect(Object.hasOwn(result, "__proto__")).toBe(true);
+  });
+
   it("overlays data on manifest defaults (data wins per key)", () => {
     const m = manifest({
       role: { type: "string", default: "User" },

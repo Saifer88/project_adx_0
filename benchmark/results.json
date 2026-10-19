@@ -1,4 +1,5 @@
 {
+  "scope": "source-read",
   "encoder": "o200k_base",
   "tasks": [
     {

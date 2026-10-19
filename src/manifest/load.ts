@@ -89,11 +89,23 @@ function validateProps(value: unknown): Record<string, PropDef> {
       prop.required = def.required;
     }
     if ("default" in def) {
+      validatePropValue(key, prop.type, def.default, true);
       prop.default = def.default;
     }
-    out[key] = prop;
+    Object.defineProperty(out, key, { value: prop, enumerable: true, writable: true, configurable: true });
   }
   return out;
+}
+
+export function validatePropValue(name: string, type: PropType, value: unknown, isDefault = false): void {
+  const valid = type === "array"
+    ? Array.isArray(value)
+    : type === "object"
+      ? typeof value === "object" && value !== null && !Array.isArray(value)
+      : typeof value === type && (type !== "number" || Number.isFinite(value));
+  if (!valid) {
+    throw adxFileError(FILE, `Prop "${name}"${isDefault ? " default" : ""} must be of type "${type}"`);
+  }
 }
 
 function validateStringArray(value: unknown, field: string): string[] {

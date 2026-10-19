@@ -36,7 +36,7 @@ import type { EvalScope } from "../expr/evaluate.js";
 import { evaluate, truthy, toText } from "../expr/evaluate.js";
 import { VOID_ELEMENTS } from "../structure/tokenizer.js";
 import { instanceBindingId } from "./scope.js";
-import { isHtmlTag } from "./html-tags.js";
+import { BOOLEAN_ATTRIBUTES, isHtmlTag } from "./html-tags.js";
 import { bareComputedKey } from "../behavior/compute-key.js";
 import type { CodegenContext, BuildState, EmitParent } from "./context.js";
 
@@ -334,7 +334,7 @@ function emitPlainElement(
     const n = state.bindingCount++;
     const id = instanceBindingId(state.ctx.scopeId, state.ctx.instanceIndex, n);
     attrs.push(`data-adx-b="${id}"`);
-    const updates = loopLocal
+    const updates = loopLocal || (scope.locals?.length ?? 0) > 0
       ? []
       : buildUpdates(node.bindings, textRun, state.computedKeys);
     state.hooks.push({
@@ -406,6 +406,9 @@ function resolveBinding(binding: Binding, scope: EvalScope): string | null {
   if (binding.expr) {
     const value = evaluate(binding.expr, scope);
     if (value === null || value === undefined) return null;
+    if (BOOLEAN_ATTRIBUTES.has(binding.name.toLowerCase())) {
+      return value === false ? null : "";
+    }
     return toText(value);
   }
   return "";

@@ -10,6 +10,15 @@ import { fixtureDir, tokensPath } from "./helpers.js";
 const opts = { tokensPath, data: { name: "Ada Lovelace" } };
 
 describe("compileComponent (end-to-end)", () => {
+  it("includes hydration assets for standalone composed children", () => {
+    const result = compileComponent(join(fixtureDir, "..", "compose", "landing"), { tokensPath });
+    expect(result.components.map((component) => component.stem).sort()).toEqual(["site-header", "user-card"]);
+    for (const component of result.components) {
+      expect(result.glue).toContain(`import "./${component.stem}.glue.js";`);
+      expect(component.glue).toContain(`from "./${component.stem}.behavior.js";`);
+    }
+  });
+
   it("produces the three artifacts for the UserCard fixture", () => {
     const { html, css, glue, manifest } = compileComponent(fixtureDir, opts);
     expect(manifest.name).toBe("UserCard");

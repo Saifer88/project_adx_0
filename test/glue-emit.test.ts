@@ -14,7 +14,7 @@ describe("emitGlue (per-instance)", () => {
   it("emits a valid ES module importing behavior exports", () => {
     const { glue } = glueFor('<article @click="onClick"></article>');
     expect(glue).toContain("import { setup, onClick } from \"./behavior.js\";");
-    expect(glue).toContain("export { state, props };");
+    expect(glue).toContain("export { lastState as state, lastProps as props };");
   });
 
   it("carries an INSTANCES array and loops per instance (one i0 here)", () => {
@@ -29,7 +29,7 @@ describe("emitGlue (per-instance)", () => {
 
   it("selects each instance's root by data-adx-c + data-adx-i", () => {
     const { glue } = glueFor('<article @click="onClick"></article>');
-    expect(glue).toContain("document.querySelector(");
+    expect(glue).toContain("document.querySelectorAll(");
     expect(glue).toContain("'[data-adx-c=\"' + SCOPE + '\"][data-adx-i=\"' + inst.i + '\"]'");
   });
 

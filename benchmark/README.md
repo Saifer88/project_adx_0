@@ -20,6 +20,10 @@ and runs it. It prints a per-task table naming the encoder used and writes
 
 ## What is measured
 
+The default report has `scope: "source-read"`. It does not measure edits,
+reasoning, retries, task success or full agent cost. Its 13.3-13.8% savings are
+specific to this fixture, not a lower bound for other projects.
+
 The tokenizer is [`gpt-tokenizer`](https://www.npmjs.com/package/gpt-tokenizer)
 (pure JS, MIT), using the GPT-4o **`o200k_base`** encoder. Each task is a concrete
 operation defined by the file set an agent must read to perform it (see
@@ -82,3 +86,57 @@ module (no separate `types.ts` is needed — the prop interface lives inline in
 The benchmark is a dev tool: a missing fixture file or an encoder import failure
 throws a plain Node error (not an `[ADX]` compiler error) and fails
 `npm run benchmark`.
+
+## Recorded Agent Workflows
+
+The harness can also validate and summarize real paired workflow recordings:
+
+```sh
+npm run benchmark -- --workflow /path/to/runs.json
+```
+
+This command only analyzes supplied records; it does not invoke an AI provider,
+run an agent or fabricate measurements. No real workflow results are included yet.
+The report goes to stdout and leaves the source-reading results unchanged.
+
+Use the `workflowTasks` prompts and acceptance criteria in `tasks.json` for style
+changes, adding a prop and a multi-instance page. Before measuring, prepare
+equivalent working ADX and React fixtures and executable acceptance checks.
+
+Protocol:
+
+1. Fix the model/version, agent instructions, tool availability, starting revision,
+  cache policy and maximum attempt/time budgets in a versioned protocol document.
+2. Start both frameworks from clean equivalent fixtures. Include framework-specific
+  setup/reference material in measured context. Alternate the run order and use
+  fresh sessions; retain failed and timed-out runs, not only successes.
+3. Record provider-reported input/output totals across all requests, including
+  retries and reasoning where counted by the provider. Cached input is a subset
+  of input tokens, not an additional token total. Record full wall-clock duration
+  and the number of edit/validation attempts.
+4. Run the same task acceptance checks for both frameworks. Mark `passed` only
+  when all checks pass; retain logs, patches and test output as evidence.
+5. Match pairs by task, model and trial using the same protocol. Repeat trials
+  before drawing conclusions; report success rate alongside cost and latency.
+
+`runs.json` is a non-empty array of records with these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `task`, `model`, `trial` | Non-empty strings identifying a paired trial |
+| `protocol` | Shared version/revision of the comparison protocol |
+| `framework` | `adx` or `react` |
+| `inputTokens` | Total input tokens, including cached input |
+| `cachedInputTokens` | Cached subset, between zero and inputTokens |
+| `outputTokens` | Total provider-reported output tokens |
+| `durationMs` | Full elapsed time, including retries |
+| `attempts` | Positive integer number of edit/validation attempts |
+| `passed` | Boolean result of external acceptance checks |
+| `evidence` | Path or reference to retained trace, patch and check results |
+
+Counts must be nonnegative safe integers. Each task/model/trial must have exactly
+one ADX and one React record with matching protocol identifiers. The tool validates
+record shape and pairing; it cannot independently authenticate logs or acceptance
+results. Per-pair savings are null when either run fails or the React token total
+is zero. Failed-run costs remain in totals. This is a token comparison, not a
+dollar-cost estimate: cached and uncached pricing must be analyzed separately.

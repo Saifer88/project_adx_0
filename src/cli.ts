@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
+import type { ComponentAsset } from "./codegen/glue.js";
 
 interface ParsedArgs {
   command: string | undefined;
@@ -109,12 +110,13 @@ function runComponent(args: ParsedArgs): number {
   // The glue module hydrates the static HTML by importing the component's
   // behavior exports from `./behavior.js`. Emit that module alongside the glue
   // so the import resolves in the browser — `behavior.adx.js` is already plain
-  // ES-module JS (scanned, never executed at build time), so it is copied as-is.
+  // ES-module JS (parsed and executed at build time), so it is copied as-is.
   writeFileSync(
     join(outDir, "behavior.js"),
     readFileSync(join(dir, "behavior.adx.js"), "utf8"),
     "utf8",
   );
+  writeComponentAssets(outDir, result.components);
   process.stdout.write(`Built ${result.manifest.name} -> ${outDir}\n`);
   return 0;
 }
@@ -144,7 +146,13 @@ function runPage(args: ParsedArgs): number {
   writeFileSync(join(outDir, "glue.js"), result.glue, "utf8");
   // Each distinct component's hydration module + its behavior source, beside
   // the page so the relative imports resolve in the browser.
-  for (const comp of result.components) {
+  writeComponentAssets(outDir, result.components);
+  process.stdout.write(`Built page ${slug} -> ${outDir}\n`);
+  return 0;
+}
+
+function writeComponentAssets(outDir: string, components: ComponentAsset[]): void {
+  for (const comp of components) {
     writeFileSync(join(outDir, `${comp.stem}.glue.js`), comp.glue, "utf8");
     writeFileSync(
       join(outDir, `${comp.stem}.behavior.js`),
@@ -152,8 +160,6 @@ function runPage(args: ParsedArgs): number {
       "utf8",
     );
   }
-  process.stdout.write(`Built page ${slug} -> ${outDir}\n`);
-  return 0;
 }
 
 function run(argv: string[]): number {

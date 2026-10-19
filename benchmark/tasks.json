@@ -1,6 +1,23 @@
 {
   "description": "Token benchmark tasks: ADX source vs an equivalent React implementation of the same UserCard component. Each task names the file set an agent must READ to perform that operation. Paths are relative to the benchmark/ directory. Reproduce with `npm run benchmark`.",
   "encoder": "o200k_base",
+  "workflowTasks": [
+    {
+      "id": "modify-style",
+      "prompt": "Change the UserCard padding to 24px and border radius to 12px without changing its public API or behavior.",
+      "acceptance": ["Computed padding is 24px", "Computed border radius is 12px", "DOM content and event payloads are unchanged", "Build and existing tests pass"]
+    },
+    {
+      "id": "add-prop",
+      "prompt": "Add an optional subtitle string prop, empty by default, rendered below the user name only when non-empty. Preserve existing behavior.",
+      "acceptance": ["Empty subtitle adds no element", "A supplied subtitle is visible without JavaScript", "HTML-like subtitle text is escaped", "Existing events and builds still work"]
+    },
+    {
+      "id": "multi-instance",
+      "prompt": "Build a page containing three UserCards with different names and a Follow action per card. Each action must emit only its own user's name.",
+      "acceptance": ["All three names are present without JavaScript", "Each Follow action emits the matching name", "No console errors or missing assets", "The layout has no horizontal overflow at 390px"]
+    }
+  ],
   "tasks": [
     {
       "id": "understand",

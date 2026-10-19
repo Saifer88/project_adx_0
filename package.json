@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:browser": "npm run build && playwright test",
     "lint": "eslint .",
     "benchmark": "tsc -p tsconfig.benchmark.json && node dist/benchmark/run.js"
   },
@@ -24,6 +25,7 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/node": "20.17.10",
     "@typescript-eslint/eslint-plugin": "8.18.2",
     "@typescript-eslint/parser": "8.18.2",
@@ -33,5 +35,8 @@
     "typescript": "5.7.2",
     "typescript-eslint": "8.18.2",
     "vitest": "2.1.8"
+  },
+  "dependencies": {
+    "acorn": "8.19.0"
   }
 }

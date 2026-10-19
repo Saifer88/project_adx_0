@@ -50,6 +50,7 @@ export interface InstanceRecord {
   instanceIndex: number;
   /** The exact merged props the instance's HTML was built from. */
   props: Record<string, unknown>;
+  hooks?: BindingHook[];
 }
 
 /** Everything the glue emitter needs about one DISTINCT component on a page. */
@@ -63,10 +64,7 @@ export interface DistinctComponent {
   /** The component's scoped CSS, emitted once. */
   css: string;
   /**
-   * The hooks of the FIRST emitted instance, with their ids templated so the
-   * per-instance glue can substitute each instance's ordinal. Hook structure
-   * (events/bindings) is identical across instances; only the `i<ordinal>`
-   * segment varies, so storing one templated set is enough.
+  * Fallback hooks for callers that do not supply per-instance hooks.
    */
   hooks: BindingHook[];
   /** One record per emitted instance of this component on the page. */

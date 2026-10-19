@@ -12,7 +12,7 @@ Traditional frameworks (React, Vue, Svelte) were designed for human developers. 
 This means:
 - Syntax is more compact (fewer tokens for AI)
 - Files are separated (easier for AI to target)
-- Patterns are built-in (less for AI to generate)
+- A reusable pattern library is planned (not implemented yet)
 - Documentation is exhaustive (optimized for AI context windows)
 
 The result? Your AI pair programmer reads and edits ADX with fewer tokens. On the
@@ -26,11 +26,14 @@ numbers and where bigger savings are expected to come from.
 ### Installation
 
 ```bash
-npm install -g adx
-adx create my-app   # planned (M1 ships build/check only — see CLI Commands below)
-cd my-app
-adx dev             # planned
+npm ci
+npm run build
+node dist/cli.js build fixtures/user-card --data fixtures/user-card/data.json --out dist/site
+node dist/cli.js check fixtures/site/index.json
 ```
+
+Run these commands from this repository using Node 22.13+ (22.x) or Node 24+.
+The npm release, `adx create`, and `adx dev` are not available yet.
 
 ### Project Structure
 
@@ -278,7 +281,7 @@ today but not yet wired, so prefer `slot="name"`.)
 
 ### Behavior Files (`.behavior.adx.js`)
 
-Pure functions, no classes:
+Deterministic setup, synchronous handlers that may mutate state, no classes:
 
 ```js
 // Required: Initialize component state
@@ -304,7 +307,7 @@ export function getDisplayName(state) {
   return state.name.toUpperCase()
 }
 
-// Lifecycle hooks
+// Planned lifecycle hooks: names are recognized but never invoked today
 export function onMounted(state) {
   console.log('Component mounted')
 }
@@ -314,7 +317,7 @@ export function onUnmounted(state) {
 }
 ```
 
-**Available Lifecycle Hooks**:
+**Planned Lifecycle Hooks (Not Invoked Today)**:
 - `onMounted()` - After component is added to DOM
 - `onUnmounted()` - Before component is removed
 - `onUpdated()` - After state changes
@@ -380,9 +383,11 @@ All styles are automatically scoped to the component. No need for BEM or CSS mod
 }
 ```
 
-## Built-In Patterns
+## Planned Patterns (Not Implemented)
 
-ADX includes professionally designed patterns. Use them as-is or extend them.
+The following examples describe a future pattern library, not working compiler
+features. `@adx/patterns` is unavailable; use ordinary HTML and existing project
+components today. Accessibility remains the component author's responsibility.
 
 ### Layout
 
@@ -617,9 +622,11 @@ echo '{ "name": "Ada Lovelace", "role": "Founder" }' > data.json
 node dist/cli.js build fixtures/user-card --data data.json --out dist
 ```
 
-Behind the scenes the compiler runs your component's `setup()` once, at build
-time, in a locked-down sandbox (no file system, no network, no `process`, with a
-timeout), so the real state lands in the static HTML. Without data, a required
+Behind the scenes both `build` and `check` run your component's `setup()` at build
+time in a Node VM context with a timeout. This is trusted code execution, not
+security isolation: constructor access can reach the host environment. Only
+compile trusted components, or use an externally restricted build environment.
+Without data, a required
 prop that has no default now fails the build with a clear
 `[ADX] manifest.json - Missing required prop "name" (...)` — no more silent empty
 headings.
@@ -630,9 +637,12 @@ content without running any JavaScript), a scoped `style.css` with your design
 tokens resolved to real values, a tiny `glue.js` that only *attaches*
 interactivity to the HTML that's already there (it never rebuilds the page), and
 a `behavior.js` — your `behavior.adx.js` copied as-is — that the glue imports for
-its `setup`/`on<Event>` handlers. The compiler name-scans those exports to wire
+its `setup`/`on<Event>` handlers. The compiler parses those exports with Acorn to wire
 handlers, and it *runs* `setup()` (and any `get*()` it needs) at build time inside
-the sandbox described above to compute the state it bakes into the HTML.
+the VM context described above to compute the state it bakes into the HTML.
+Composed children receive their own behavior/glue files in standalone builds too.
+Declared props and defaults are type-checked; null is not a valid declared prop
+value, and omitted optional props may use defaults.
 
 ### Compiling a component today
 

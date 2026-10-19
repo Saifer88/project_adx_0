@@ -15,13 +15,13 @@ ADX optimizes all four phases.
 > ⚠️ **This benchmark is narrow and not exhaustive.** It counts only the tokens an
 > agent spends **reading** a single small component, and excludes ADX's strongest
 > cases (manifest-only scanning, full modify-and-explain workflows, multi-component
-> apps). The measured ~13-14% is the floor on the least favorable task — **not**
-> the expected real-world result. The **60-80% figure is the design target** for a
-> complete agent workflow at scale: a hypothesis this narrow benchmark does not
-> test and therefore cannot disprove. The true figure is unmeasured pending a
-> broader benchmark (see `docs/roadmap.md`).
+> apps). The measured ~13-14% is specific to these fixtures, not a lower bound or
+> a prediction for real-world work. The **60-80% figure is an unverified target**;
+> broader workflows may perform better or worse. Use the recorded-workflow
+> protocol in `benchmark/README.md` to collect comparable evidence.
 
-Everything below the next heading is **estimated, pre-measurement**. Milestone 2
+Everything below the next heading is **estimated, pre-measurement**, including
+benefits attributed to the not-yet-implemented pattern library. Milestone 2
 shipped a reproducible benchmark (`npm run benchmark`) that tokenizes the real
 `user-card` fixture against a faithful minimal React equivalent with
 `gpt-tokenizer` (o200k_base encoder). Measured savings

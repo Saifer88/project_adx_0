@@ -1,11 +1,39 @@
 import { describe, it, expect } from "vitest";
 import { compileComponent } from "../src/compile.js";
+import { wrapPageDocument } from "../src/page/compile.js";
+import { JSDOM } from "jsdom";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fixtureDir, tokensPath } from "./helpers.js";
 
 // The fixture `name` prop is required with no default; supply it via `data`.
 const opts = { tokensPath, data: { name: "Ada Lovelace" } };
 
 describe("SEO contract — emitted HTML is crawlable without JS", () => {
+  it("preserves JSON-LD data without allowing script breakouts in pages or components", () => {
+    const payload = '</script><script>alert("test")</script>';
+    const pageHtml = wrapPageDocument([], { page: "index", title: payload, description: "Test", lang: "en", canonical: "/", schema: payload, components: [] });
+    const dir = mkdtempSync(join(tmpdir(), "adx-seo-"));
+    try {
+      cpSync(fixtureDir, dir, { recursive: true });
+      const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
+      manifest.name = payload;
+      manifest.seo = { schema: payload };
+      writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
+      const componentHtml = compileComponent(dir, opts).html;
+      for (const html of [pageHtml, componentHtml]) {
+        const doc = new JSDOM(html).window.document;
+        expect(doc.querySelectorAll("script").length).toBe(2);
+        const metadata = JSON.parse(doc.querySelector('script[type="application/ld+json"]')!.textContent!);
+        expect(metadata.name).toBe(payload);
+        expect(metadata["@type"]).toBe(payload);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   const { html } = compileComponent(fixtureDir, opts);
 
   it("contains the resolved content with zero {{", () => {
