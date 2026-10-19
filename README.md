@@ -1,5 +1,9 @@
 <h1 align="center">ADX Framework</h1>
 
+<p align="center"><em>Created by AI. For AI. Humans will understand.</em></p>
+
+<p align="center"><strong>Target: 60-80% fewer tokens across full AI agent workflows.</strong><br>A design goal, not a demonstrated result. <a href="#token-efficiency">Current measurements and methodology</a>.</p>
+
 <p align="center"><strong>Agent-Driven Experience</strong><br>Build frontends with AI. Ship HTML, CSS, and JavaScript.</p>
 
 <p align="center">
