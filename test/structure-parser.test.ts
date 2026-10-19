@@ -136,6 +136,17 @@ describe("structure parser — features", () => {
     expect(div.classes).toEqual(["a", "b", "c"]);
   });
 
+  it("preserves Tailwind class syntax in literal attributes, not dot shorthand", () => {
+    const classes = ["md:grid", "hover:underline", "w-1/2", "p-2.5", "w-[37px]", "-mt-2", "p-4!"];
+    const [node] = parse(`<div class="${classes.join(" ")}"></div>`);
+    expect(node.kind).toBe("element");
+    if (node.kind !== "element") throw new Error("Expected an element");
+    expect(node.classes).toEqual(classes);
+    for (const name of classes) {
+      expect(() => parse(`<div .${name}></div>`)).toThrow(`Invalid class name ".${name}"`);
+    }
+  });
+
   it("parses plain and boolean attributes", () => {
     const nodes = parse(`<input type="email" required>`);
     const input = nodes[0] as ElementNode;

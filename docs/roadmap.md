@@ -131,8 +131,8 @@ optional `assets` object (`css`/`js`/`head`) on the page manifest and/or a share
 site config passed with `adx build/check <page.json> --site <site.json>` (explicit
 flag, no auto-discovery). Site assets are the merge base; page assets append;
 `css`/`js` dedupe first-wins (js by `src`), `head` is not deduped. The token
-`style.css` is emitted before external `assets.css` (so a library can override via
-cascade); the hydration glue is emitted before author `assets.js` in the markup
+`style.css` is emitted before external `assets.css` (not an override guarantee:
+importance, layers and specificity still apply); the hydration glue is emitted before author `assets.js` in the markup
 (a document-order guarantee, not a runtime one — a classic/`async` author script
 can still run before the deferred glue). Raw `assets.head` is injected verbatim
 (author-trusted). Assets-free pages compile byte-for-byte as

@@ -302,6 +302,11 @@ after the token `style.css`; raw `assets.head` strings are injected verbatim
 hydration glue, before `</body>`. Assets-free pages compile byte-for-byte as
 before.
 
+Link order does not guarantee CSS overrides. ADX's scoped selectors add
+specificity, and its unlayered normal declarations outrank Tailwind v4's layered
+utilities. Authors avoid conflicting declarations or explicitly opt into
+Tailwind important utilities; the compiler does not change cascade layers.
+
 This fits the SEO/static contract deliberately:
 
 - **External CSS is SEO-safe** — a `<link>` to a build-time static stylesheet (the

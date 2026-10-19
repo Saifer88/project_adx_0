@@ -251,8 +251,7 @@ export function wrapPageDocument(
   // Assets splice in at fixed seams ONLY when their array is non-empty, so an
   // absent/empty `assets` yields byte-for-byte today's document. Each fragment
   // carries its own leading `\n  ` so an empty array contributes nothing.
-  // External stylesheets go AFTER the token `style.css` link so a design
-  // library can override component styles via normal cascade order.
+  // Link order alone does not override cascade layers or scoped specificity.
   const cssLinks = (assets?.css ?? [])
     .map((href) => `\n  <link rel="stylesheet" href="${escapeHtml(href)}" />`)
     .join("");

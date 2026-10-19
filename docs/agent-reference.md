@@ -279,9 +279,10 @@ tokens.breakpoint-xl  /* 1280px */
 ```
 
 ### Change Styling
-1. Edit `style.adx.css` only
-2. Use existing tokens, e.g. `tokens.space-4`, `tokens.primary`; list them with `adx tokens`
-3. Use abbreviated properties: `pad`, `bg`, `radius`
+- ADX styles: edit `style.adx.css`; use existing tokens (`adx tokens`) and
+  abbreviations such as `pad`, `bg`, `radius`.
+- Tailwind: edit literal `class="..."` attributes in `structure.adx`, then rebuild
+  Tailwind CSS and the ADX page. See [external assets](#external-design-library-assets).
 
 ## Token Optimization Tips
 
@@ -459,88 +460,62 @@ a later milestone.
 
 ### External design-library assets
 
-(The `assets` field and the `--site` config.)
-
-Pages opt into external CSS/JS (Tailwind or any design library) via an optional
-`assets` object on the page manifest and/or a shared **site config** passed with
-`--site <path>` (build/check only; resolved vs CWD; **no auto-discovery**).
-Assets-free pages are byte-for-byte unchanged.
+Pages only: declare `assets` on the page or in a shared `site.json`. Pass
+`--site <path>` to **both** build/check; path is relative to CWD, never discovered.
 
 ```json
-{
-  "assets": {
-    "css": ["./tailwind.css", "https://cdn.example.com/lib.css"],
-    "js": [{ "src": "./app.js", "type": "module", "defer": true }, "./widget.js"],
-    "head": ["<meta name=\"theme-color\" content=\"#1d4ed8\" />"]
-  }
-}
+{ "assets": { "css": ["/tailwind.css"], "js": [{ "src": "/app.js", "type": "module" }] }, "lang": "en" }
 ```
 
-| Field | Type | Emitted as |
-|---|---|---|
-| `assets.css` | array of non-empty strings | `<link rel="stylesheet" href="…" />` in `<head>`, after the token `style.css` (href escaped) |
-| `assets.js` | array of non-empty strings **or** `{ src, type?, defer?, async? }` | `<script …></script>` after the glue module, before `</body>` (src/type escaped; `defer`/`async` bare attrs). Attr order: `type`, `src`, `defer`, `async` |
-| `assets.head` | array of strings | raw, **verbatim (unescaped)** in `<head>` after the css links — author-trusted; never feed untrusted input here |
+- `css`: non-empty URL strings. `js`: non-empty URL strings or objects with
+  required `src`, optional string `type`, boolean `defer`/`async`.
+- `head`: raw HTML strings after CSS links; **trusted authors only**.
+- Merge: site then page; CSS deduped by exact URL, JS by `src` (first wins,
+  including flags); head not deduped. Language: page > site > `en`.
+- URLs resolve against the **emitted document**, not the manifest. ADX never
+  copies, generates or checks asset files. Put shared `/tailwind.css` at
+  `dist/tailwind.css`; `./x.css` must sit beside that page's HTML. For subpath
+  hosting, include the deployment prefix (e.g. `/my-app/tailwind.css`).
+- External CSS follows ADX CSS; JS follows glue **in markup only**. Classic
+  scripts can execute before glue; `async` is unordered. Hydration-dependent
+  code should wait for `DOMContentLoaded`, not rely on tag placement.
 
-Shorthand `"./app.js"` normalizes to `{ "src": "./app.js" }`. `src` is required
-and non-empty. Unknown keys inside `assets` are ignored. Asset reachability is
-**not** checked — `adx build` references the files, it does not fetch/read/bundle
-them (so a missing `/tailwind.css` is not a build error).
+**Tailwind v4 quick path** (after `adx init`, from the app root):
 
-**Asset strings are browser URLs** resolved by the browser relative to the
-**emitted document**, not filesystem paths relative to the page or `site.json`.
-A page writes to `<out>/index.html` (root `index`/`home`) or `<out>/<slug>/index.html`
-(every other page), and ADX **never copies** asset files. So a page-relative
-`"./x.css"` only resolves when `x.css` sits beside that page's `index.html`. For
-an asset shared across pages (e.g. a Tailwind build), declare a **root-absolute
-URL** (`"/tailwind.css"`) and emit the file at the output root (`dist/tailwind.css`)
-so every page — root or nested — resolves it identically.
-
-**Site config (`--site <site.json>`):** same `assets` shape, plus an optional
-site-wide `lang` default. Merge is **concat then dedupe**: site assets first,
-page assets appended; `css` deduped by exact href and `js` by `src` (first/site
-wins, flags included); `head` is **not** deduped. An explicit page `lang` wins;
-otherwise the site `lang` fills in (else `"en"`).
-
-```json
-{ "assets": { "css": ["/tailwind.css"] }, "lang": "en" }
+```bash
+npm install -D tailwindcss@4 @tailwindcss/cli@4
+mkdir -p styles
 ```
 
-A **shared** asset uses a **root-absolute** URL (`"/tailwind.css"`, emitted at
-`<out>/tailwind.css`) so every page — root or nested — resolves it identically;
-reserve a page-relative `"./x.css"` for an asset that sits beside that one page's
-`index.html`.
+Create `styles/tailwind.css`:
 
-**CSS order:** the token `style.css` is emitted **first**, external `assets.css`
-**after**, so a design library can override ADX's component styles via normal
-cascade (later wins). **JS order:** author scripts are emitted in document order
-**after** the ADX hydration glue, so nothing an author adds can precede the glue
-in the markup. This is a **markup-order** guarantee, not a runtime one — the glue
-is a deferred `type="module"` script, so a classic/shorthand author script (no
-`type`/`defer`) runs when the parser reaches it, before the deferred glue, and an
-`async` entry is unordered. Code that needs a hydrated DOM must wait for a
-readiness signal (use `type: "module"`/`defer`, or `DOMContentLoaded`) — it must
-not assume the glue has already run.
+```css
+@import "tailwindcss" source("../");
+```
 
-Exact `assets` error strings (`[ADX] <file> - <msg>`; `<file>` = page path or
-site path): `"assets" must be an object`; `"assets.css" must be an array of
-strings`; `"assets.js" must be an array of scripts`; `Each "assets.js" entry
-must be a string or an object with "src"` (for `null`/array/number/boolean);
-`Each "assets.js" entry must have a string "src"` (object/empty-shorthand with no
-`src`); `"assets.js" type must be a string`; `"assets.js" defer must be a
-boolean`; `"assets.js" async must be a boolean`; `"assets.head" must be an array
-of strings`. Site-only: `Cannot read site config`, `Invalid JSON`, `Site config
-must be an object`, `Field "lang" must be a string`.
+Create `site.json` with `{"assets":{"css":["/tailwind.css"]}}`. Use literal
+`class="p-2.5 md:grid hover:underline w-1/2"` in component markup; dot shorthand
+rejects variants, fractions, decimals, arbitrary values and negative utilities.
+Keep class names complete in scanned source, never concatenate fragments.
+Tailwind skips ignored files and dependencies; add `@source` for those.
 
-**AGENT RULE — use build-time static CSS for Tailwind/any CSS library.** Run the
-library's CLI (e.g. the Tailwind CLI) to produce a static `tailwind.css`, then
-reference it via `assets.css` (page or `site.json`). The compiler never runs
-Tailwind. **Do NOT inject a runtime CSS CDN `<script>` into a component** — the
-old "put the Tailwind Play CDN in the Navbar" pattern is **wrong**: it breaks the
-static/crawlable/minimal-JS contract (styling now depends on a blocking
-third-party runtime) and pollutes a reusable component with page/document
-concerns. External JS is allowed via `assets.js` but discouraged for
-runtime-heavy scripts for the same reason.
+```bash
+npx @tailwindcss/cli -i styles/tailwind.css -o dist/tailwind.css --minify
+adx check index.json --site site.json
+adx build index.json --site site.json
+adx serve dist
+```
+
+**Cascade:** loading last does not guarantee overrides. ADX uses scoped,
+unlayered rules; normal declarations outrank Tailwind v4's layered utilities.
+Prefer utilities owning their properties without competing ADX declarations.
+For intentional overrides, use v4 `p-2.5!` or opt the whole utility sheet into
+`@import "tailwindcss" source("../") important;` (not ADX's default).
+Tailwind Preflight is global; check existing components.
+
+Rebuild both outputs after edits. ADX never runs Tailwind; **do not inject the
+Play CDN runtime into components**. See [setup/troubleshooting](./human-guide.md#using-tailwind-or-any-css-library-with-adx)
+and [asset schema/errors](./adx-grammar.md#12-pagesite-assets-schema-json-not-adx).
 
 ## Composition
 

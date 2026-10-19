@@ -39,6 +39,9 @@ attributes. Four attribute forms exist; order among them is free.
 
 `.card` adds class `card`. Repeatable: `.card .wide` → `class="card wide"`.
 Class names: `[a-zA-Z][a-zA-Z0-9_-]*`.
+For Tailwind variants, fractions, decimals, arbitrary values, negative utilities
+or `!` modifiers, use a literal attribute instead:
+`<div class="md:grid w-1/2 p-2.5 w-[37px] -mt-2 p-4!">`.
 
 ### 2.2 Property binding — `:prop="expr"`
 
@@ -394,11 +397,29 @@ JsScript    := { src: string, type?: string, defer?: boolean, async?: boolean } 
 - `head[]` — each a string; empty strings are legal (no non-empty rule). Emitted
   verbatim/unescaped (author-trusted).
 
-Exact error strings (`[ADX] <file> - <msg>`): see the Pages section of
-[agent-reference.md](./agent-reference.md#external-design-library-assets).
+Exact error strings (`[ADX] <file> - <msg>`; file is the page/site path):
+
+- `"assets" must be an object`
+- `"assets.css" must be an array of strings`
+- `"assets.js" must be an array of scripts`
+- `Each "assets.js" entry must be a string or an object with "src"`:
+  null/array/number/boolean entry.
+- `Each "assets.js" entry must have a string "src"`: missing, empty or non-string
+  `src`, including empty shorthand.
+- `"assets.js" type must be a string`
+- `"assets.js" defer must be a boolean`
+- `"assets.js" async must be a boolean`
+- `"assets.head" must be an array of strings`
+
+Site-only: `Cannot read site config`, `Invalid JSON`, `Site config must be an
+object`, `Field "lang" must be a string`.
+
 Merge (`--site`) is concat-then-dedupe: site base + page appended; `css`/`js`
 deduped first-wins (js by `src`), `head` not deduped. Token `style.css` is
 emitted before external `assets.css`; the glue script before author `assets.js`.
+CSS precedence still depends on importance, layers and specificity. Script order
+is markup order, not execution order. Script attributes serialize as `type`,
+`src`, `defer`, `async`; URL/type values are escaped, true booleans are bare attrs.
 
 ---
 

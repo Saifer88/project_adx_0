@@ -141,10 +141,12 @@ or a shared `site.json` applied with `--site`:
 
 The recommended Tailwind path is **build-time static CSS**: run the Tailwind CLI
 to generate `tailwind.css`, then reference it via `assets.css`. ADX links it right
-after its own token stylesheet (so utilities can override via cascade), keeping
-the page fully styled and crawlable with no JavaScript. Do not inject a runtime
-CSS CDN `<script>` into a component — it breaks the static/SEO contract. See the
-[AI Frontend Guide](docs/agent-reference.md#external-design-library-assets).
+after its own stylesheet, keeping styling independent of JavaScript. Loading
+last does **not** guarantee overrides: scoped, unlayered ADX styles outrank normal
+Tailwind v4 utilities. Use literal `class="..."` attributes and avoid competing
+declarations, or explicitly opt into important utilities. Do not inject the
+Play CDN runtime into a component. Follow the
+[Tailwind v4 recipe](docs/agent-reference.md#external-design-library-assets).
 
 ## Documentation
 

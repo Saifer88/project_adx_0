@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
 
@@ -9,6 +9,7 @@ let directory: string;
 let server: Server;
 let origin: string;
 const cli = resolve("dist/cli.js");
+const tailwindCli = resolve("node_modules/@tailwindcss/cli/dist/index.mjs");
 const tokens = resolve("tokens/design-tokens.json");
 const payload = '</script><script>globalThis.injected=true</script>';
 
@@ -24,6 +25,43 @@ function writeComponent(path: string, name: string, step: number): void {
 export function onInc(state){state.count += ${step};state.items[0]="Changed"}
 export function onToggle(state){state.active=true;state.label="updated"}`);
   writeFileSync(join(path, "style.adx.css"), "section { padding: 8px; }");
+}
+
+function buildTailwindPages(out: string): void {
+  const component = join(directory, "utility-card");
+  const styles = join(directory, "styles");
+  mkdirSync(component);
+  mkdirSync(styles);
+  symlinkSync(resolve("node_modules"), join(directory, "node_modules"), "junction");
+  writeFileSync(join(component, "manifest.json"), JSON.stringify({ name: "UtilityCard", version: "1" }));
+  writeFileSync(join(component, "behavior.adx.js"), "export function setup(){return {}}");
+  writeFileSync(join(component, "structure.adx"), `<section class="utility-card p-2.5 md:grid gap-4">
+  <p class="w-1/2">Tailwind content</p>
+  <span class="block w-[37px] -mt-2">Arbitrary and negative values</span>
+  <a href="#details" class="hover:underline">Read more</a>
+  <p id="details" class="local-override p-4!">Explicit override</p>
+</section>`);
+  writeFileSync(join(component, "style.adx.css"), ".utility-card { pad: 24px; }\n.local-override { pad: 24px; }");
+
+  for (const important of [false, true]) {
+    const name = important ? "utilities-important" : "utilities";
+    const cssName = `${name}.css`;
+    const input = join(styles, cssName);
+    writeFileSync(input, `@import "tailwindcss" source("../")${important ? " important" : ""};`);
+    execFileSync(process.execPath, [tailwindCli, "-i", input, "-o", join(out, cssName), "--minify"], {
+      cwd: directory,
+      timeout: 30_000,
+    });
+    const siteFile = join(directory, `${name}-site.json`);
+    writeFileSync(siteFile, JSON.stringify({ assets: { css: [`/${cssName}`] } }));
+    const pageFile = join(directory, `${name}.json`);
+    writeFileSync(pageFile, JSON.stringify({
+      page: name, title: "Tailwind integration", description: "Real generated Tailwind CSS",
+      assets: { css: [`/${cssName}`] }, components: [{ use: "./utility-card" }],
+    }));
+    execFileSync(process.execPath, [cli, "check", pageFile, "--site", siteFile, "--tokens", tokens]);
+    execFileSync(process.execPath, [cli, "build", pageFile, "--site", siteFile, "--out", out, "--tokens", tokens]);
+  }
 }
 
 test.beforeAll(async () => {
@@ -48,6 +86,7 @@ test.beforeAll(async () => {
   writeFileSync(join(parent, "style.adx.css"), "div { display: block; }");
   execFileSync(process.execPath, [cli, "build", parent, "--out", out, "--tokens", tokens]);
   execFileSync(process.execPath, [cli, "check", "fixtures/user-card", "--data", "fixtures/user-card/data.json"]);
+  buildTailwindPages(out);
 
   server = createServer((request, response) => {
     const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
@@ -126,6 +165,41 @@ test("content and metadata remain complete without JavaScript", async ({ browser
     const metadata = await page.locator('[type="application/ld+json"]').textContent();
     expect(JSON.parse(metadata!).name).toBe(payload);
     await expect(page.locator("script")).toHaveCount(2);
+  } finally {
+    await context.close();
+  }
+});
+
+test("real Tailwind CSS styles nested pages without JavaScript and preserves cascade opt-in", async ({ browser, viewport }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport });
+  try {
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("requestfailed", (request) => errors.push(request.url()));
+    page.on("response", (response) => { if (response.status() >= 400) errors.push(response.url()); });
+    for (const important of [false, true]) {
+      const name = important ? "utilities-important" : "utilities";
+      await page.goto(`${origin}/${name}/`);
+      await expect(page.locator(`link[href="/${name}.css"]`)).toHaveCount(1);
+      const card = page.locator(".utility-card");
+      await expect(card).toHaveCSS("padding-top", important ? "10px" : "24px");
+      await expect(card).toHaveCSS("display", (viewport?.width ?? 1280) >= 768 ? "grid" : "block");
+      await expect(card).toHaveCSS("gap", "16px");
+      await expect(card.locator("span")).toHaveCSS("width", "37px");
+      await expect(card.locator("span")).toHaveCSS("margin-top", "-8px");
+      await expect(page.locator(".local-override")).toHaveCSS("padding-top", "16px");
+      await expect(card.locator("p").first()).toHaveText("Tailwind content");
+      const halfWidth = await card.locator("p").first().evaluate((element) => {
+        const parent = element.parentElement!;
+        const parentStyle = getComputedStyle(parent);
+        const contentWidth = parent.clientWidth - parseFloat(parentStyle.paddingLeft) - parseFloat(parentStyle.paddingRight);
+        return element.getBoundingClientRect().width / contentWidth;
+      });
+      expect(halfWidth).toBeCloseTo(0.5, 2);
+      await card.locator("a").hover();
+      await expect(card.locator("a")).toHaveCSS("text-decoration-line", "underline");
+    }
+    expect(errors).toEqual([]);
   } finally {
     await context.close();
   }
