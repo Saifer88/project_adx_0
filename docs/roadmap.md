@@ -8,7 +8,7 @@ Development Roadmap: ✅ done, 🚧 in progress, ❌ not started.
 Compile one component (the four `.adx` files) to static HTML + scoped CSS +
 hydration-only glue. Build/time interpolation (zero `{{ }}` in output, the SEO
 contract), design-token system, `adx build` / `adx check` CLI, 77 tests. Single
-npm package `adx` at the repo root.
+npm package (`project-adx-0`, CLI command `adx`) at the repo root.
 
 ## Shipped — Milestone 2 (usable for real sites + the claim measured)
 
@@ -122,7 +122,14 @@ compile-time WCAG-AA audit, sitemap.xml/robots.txt generation, bundle-size
 budgets, VS Code extension, browser devtools. See the README roadmap table.
 
 ## Distribution (how users get it)
-The repo is one npm package (`adx`). Intended flow: push to GitHub → a GitHub
-Action builds (`npm run build`) and publishes to npm → users `npm install -g adx`
-and run `adx build <their-component>` to compile their own code. Not yet published
-(`0.1.0-alpha`); verification CI is configured, but publishing is not automated.
+The repo is one npm package named `project-adx-0` (the CLI command it installs
+stays `adx`). Flow: push to `main` → a GitHub Action
+(`.github/workflows/publish.yml`) runs `npm ci && npm run build && npm test`,
+then publishes to npm only when `package.json`'s version is not already there →
+users `npm install -g project-adx-0` and run `adx build <their-component>` to
+compile their own code. Automated publish-on-main is now configured (version
+still `0.1.0-alpha`, so the first tagged release is pending a version bump).
+
+A static `adx serve [dir]` ships now for local preview — it serves already-compiled
+output over HTTP and does not compile or hot-reload. The full dev server with hot
+reload remains planned (see `adx dev` in the later-milestones list).

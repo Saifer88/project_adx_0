@@ -11,11 +11,23 @@
  *       Validates + emits in-memory, writes nothing. Prints "OK" and exits 0 on
  *       success, or the `[ADX] ...` error and exits 1 on failure.
  *
- * No other subcommands exist in M1.
+ *   adx serve [dir] [--port 3000] [--host localhost]
+ *       Static file server for already-compiled output; it does NOT compile.
+ *       `dir` defaults to `dist`. Serves HTML/CSS/JS ES modules over HTTP so you
+ *       can preview a build locally. Long-running: it keeps listening until the
+ *       process is interrupted (no `process.exit`).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, extname, join, resolve, sep } from "node:path";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
 import type { ComponentAsset } from "./codegen/glue.js";
@@ -26,6 +38,10 @@ interface ParsedArgs {
   out: string;
   tokens: string | undefined;
   data: string | undefined;
+  // serve-only options; undefined when omitted so defaults (3000/localhost)
+  // can apply and an explicitly bad --port can be rejected (see serve()).
+  port: number | undefined;
+  host: string | undefined;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -36,6 +52,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     out: "dist",
     tokens: undefined,
     data: undefined,
+    port: undefined,
+    host: undefined,
   };
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -45,6 +63,15 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.tokens = rest[++i];
     } else if (arg === "--data") {
       parsed.data = rest[++i];
+    } else if (arg === "--port") {
+      // Only accept a finite positive integer; leave undefined otherwise so
+      // serve() can report `[ADX] --port <v> - invalid port` and exit 1.
+      const value = Number(rest[++i]);
+      if (Number.isInteger(value) && value > 0) {
+        parsed.port = value;
+      }
+    } else if (arg === "--host") {
+      parsed.host = rest[++i];
     } else if (!arg.startsWith("--") && parsed.dir === undefined) {
       parsed.dir = arg;
     }
@@ -78,7 +105,110 @@ function usage(): string {
     "Usage:",
     "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
     "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+    "  adx serve [dir] [--port 3000] [--host localhost]",
   ].join("\n");
+}
+
+// Content types for the static files the compiler emits. `.js` is served as
+// text/javascript because the glue is a browser ES module. Anything unmapped
+// falls back to application/octet-stream.
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+};
+
+/**
+ * Static file server for already-compiled output (`adx serve [dir]`). It never
+ * compiles — it just streams the files under `dir` (default `dist`) over HTTP.
+ * Long-running: the listening server keeps the event loop alive, so this
+ * returns without `process.exit`.
+ */
+function serve(args: ParsedArgs): void {
+  const root = resolve(args.dir ?? "dist");
+  const port = args.port ?? 3000;
+  const host = args.host ?? "localhost";
+
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    // Only GET/HEAD make sense for a static server.
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Method Not Allowed\n");
+      return;
+    }
+
+    // Decode the request path; malformed percent-encoding is a 400.
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(
+        new URL(req.url ?? "/", "http://localhost").pathname,
+      );
+    } catch {
+      res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Bad Request\n");
+      return;
+    }
+
+    // SECURITY: resolve against the root and reject anything that escapes it.
+    // `..` segments cannot climb above `root` because the resolved path must be
+    // `root` itself or sit under `root + sep`.
+    const target = resolve(root, "." + pathname);
+    if (target !== root && !target.startsWith(root + sep)) {
+      res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Forbidden\n");
+      return;
+    }
+
+    // Directory requests (trailing slash or an actual directory) serve
+    // index.html; a missing file is a 404.
+    let filePath = target;
+    try {
+      const stat = statSync(target);
+      if (stat.isDirectory()) {
+        filePath = join(target, "index.html");
+      }
+    } catch {
+      if (pathname.endsWith("/")) {
+        filePath = join(target, "index.html");
+      }
+    }
+
+    let fileStat;
+    try {
+      fileStat = statSync(filePath);
+      if (fileStat.isDirectory()) {
+        throw new Error("is a directory");
+      }
+    } catch {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not Found\n");
+      return;
+    }
+
+    const type = CONTENT_TYPES[extname(filePath)] ?? "application/octet-stream";
+    res.writeHead(200, { "Content-Type": type });
+    if (req.method === "HEAD") {
+      res.end();
+      return;
+    }
+    const stream = createReadStream(filePath);
+    stream.on("error", () => {
+      // The file vanished between stat and read; report it and close.
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      }
+      res.end();
+    });
+    stream.pipe(res);
+  });
+
+  server.listen(port, host, () => {
+    process.stdout.write(`ADX serving ${root} at http://localhost:${port}/\n`);
+  });
 }
 
 /** Build/check a single component directory (M1 path, unchanged behavior). */
@@ -162,9 +292,7 @@ function writeComponentAssets(outDir: string, components: ComponentAsset[]): voi
   }
 }
 
-function run(argv: string[]): number {
-  const args = parseArgs(argv);
-
+function run(args: ParsedArgs): number {
   if (args.command !== "build" && args.command !== "check") {
     process.stderr.write(usage() + "\n");
     return 1;
@@ -196,4 +324,26 @@ function run(argv: string[]): number {
   }
 }
 
-process.exit(run(process.argv.slice(2)));
+/**
+ * Entry point. Parses argv once, then dispatches: `serve` starts a long-running
+ * server and returns without exiting (the listener keeps the event loop alive);
+ * every other command runs through `run()` and exits with its code, preserving
+ * build/check behavior exactly.
+ */
+function main(argv: string[]): void {
+  const args = parseArgs(argv);
+  if (args.command === "serve") {
+    // A `--port` that was supplied but invalid is left undefined by parseArgs;
+    // distinguish "bad value" from "omitted" so we only error on a bad value.
+    const portIndex = argv.indexOf("--port");
+    if (portIndex !== -1 && args.port === undefined) {
+      process.stderr.write(`[ADX] --port ${argv[portIndex + 1] ?? ""} - invalid port\n`);
+      process.exit(1);
+    }
+    serve(args);
+    return;
+  }
+  process.exit(run(args));
+}
+
+main(process.argv.slice(2));

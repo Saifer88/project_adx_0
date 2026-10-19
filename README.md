@@ -13,7 +13,51 @@ ADX is a frontend framework built specifically for AI coding agents to minimize 
 a minimal React equivalent. Full-workflow savings are not measured yet; 60-80%
 is a target, not a demonstrated result. See [benchmark/README.md](benchmark/README.md).
 
-## Quick Start
+## Install
+
+The npm package is **`project-adx-0`**; the CLI command it installs is **`adx`**.
+
+```bash
+# Global install -> an `adx` command on your PATH
+npm install -g project-adx-0
+adx build fixtures/user-card --data fixtures/user-card/data.json --out dist
+
+# No install (one-off). The bin name (`adx`) differs from the package name,
+# so pass the package with -p and the binary name after it:
+npx -p project-adx-0 adx build fixtures/user-card --data fixtures/user-card/data.json --out dist
+```
+
+The package publishes to npm automatically from `main` via GitHub Actions
+(see [`.github/workflows/publish.yml`](.github/workflows/publish.yml)); each push
+to `main` publishes only when `package.json`'s version is not already on npm.
+
+## CLI
+
+```bash
+adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]
+# Compile a component or a page to static HTML + scoped CSS + hydration glue.
+
+adx serve [dir] [--port 3000] [--host localhost]
+# Preview already-compiled output locally. Static file server only; it does
+# NOT compile. `dir` defaults to `dist`. Prints the URL to open.
+
+adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]
+# Validate in-memory (prints OK and exits 0, or an [ADX] error and exits 1).
+```
+
+### End-to-end example
+
+```bash
+npm install -g project-adx-0
+
+# Build the user-card fixture into dist/
+adx build fixtures/user-card --data fixtures/user-card/data.json --out dist
+
+# Serve the result and open the printed URL (http://localhost:3000/)
+adx serve dist/user-card
+```
+
+## Quick Start (from source)
 
 ### Build & Validate
 ```bash
@@ -24,6 +68,9 @@ node dist/cli.js build fixtures/user-card --data fixtures/user-card/data.json --
 
 # Build a page
 node dist/cli.js build fixtures/site/index.json --out dist/site
+
+# Preview a build locally (static server; does not compile)
+node dist/cli.js serve dist/site
 
 # Validate a component/page
 node dist/cli.js check fixtures/user-card --data fixtures/user-card/data.json
@@ -58,12 +105,12 @@ Each component consists of 4 files:
 ## Status
 - **Version**: `0.1.0-alpha`
 - **Current Milestone**: Real data binding, multi-component pages, and reactivity contract.
-- **Next**: Pattern library and dev server.
+- **Next**: Pattern library and a dev server with hot reload.
 
 Available: typed props/defaults, static composition and slots, scoped CSS,
-per-instance text/attribute updates, and hydration assets for both pages and
-standalone composed components. `:if`/`:for` and computed values are build-time
-only. Lifecycle execution, `@adx/patterns`, scaffolding and hot reload are not
-implemented.
+per-instance text/attribute updates, hydration assets for both pages and
+standalone composed components, and a static `adx serve` for local preview.
+`:if`/`:for` and computed values are build-time only. Lifecycle execution,
+`@adx/patterns`, scaffolding and hot reload are not implemented.
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full plan.

@@ -33,7 +33,9 @@ node dist/cli.js check fixtures/site/index.json
 ```
 
 Run these commands from this repository using Node 22.13+ (22.x) or Node 24+.
-The npm release, `adx create`, and `adx dev` are not available yet.
+You can also install the published CLI with `npm install -g project-adx-0`
+(which gives you the `adx` command). `adx create` and `adx dev` are not
+available yet.
 
 ### Project Structure
 
@@ -594,12 +596,13 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestones 1 and 2 ship the build/check commands below; the rest are planned.
+Milestones 1 and 2 ship the build/check/serve commands below; the rest are planned.
 
 ```bash
 # Working today (M1 + M2)
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
 adx build <page.json> [--out dist] [--tokens <path>]                  # compile a page (composes components) to one index.html
+adx serve [dir] [--port 3000] [--host localhost]                      # preview a build locally (static server, does not compile)
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component (prints OK, or an [ADX] error)
 adx check <page.json> [--tokens <path>]                               # validate every component instance on a page
 npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
@@ -621,6 +624,11 @@ in the HTML. Pass one with `--data`, pointing at a JSON file of props:
 echo '{ "name": "Ada Lovelace", "role": "Founder" }' > data.json
 node dist/cli.js build fixtures/user-card --data data.json --out dist
 ```
+
+Once it's built, `adx serve dist/user-card` spins up a small static server and
+prints a `http://localhost:3000/` URL so you can open the result in a browser.
+It only serves what's already compiled — it doesn't rebuild — so re-run `build`
+after you change a component.
 
 Behind the scenes both `build` and `check` run your component's `setup()` at build
 time in a Node VM context with a timeout. This is trusted code execution, not

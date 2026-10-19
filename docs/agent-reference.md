@@ -6,10 +6,11 @@ This document is the single source of truth for AI agents working with ADX. It i
 
 ## Current Capabilities
 
-Implemented: `build`/`check`, typed props/defaults, static pages/composition/slots,
-scoped CSS, per-instance text/attribute updates, and standalone child assets.
-Not implemented: `@adx/patterns`, lifecycle execution, scaffolding, dev server,
-automatic accessibility audits, or structural/computed reactivity.
+Implemented: `build`/`check`/`serve`, typed props/defaults, static
+pages/composition/slots, scoped CSS, per-instance text/attribute updates, and
+standalone child assets. `serve` is a static preview server only (no compile).
+Not implemented: `@adx/patterns`, lifecycle execution, scaffolding, a dev server
+with hot reload, automatic accessibility audits, or structural/computed reactivity.
 The planned pattern examples below are proposals, not runnable APIs.
 Both `build` and `check` execute trusted component code; `node:vm` is not a
 security boundary. See the build-time execution section before compiling dependencies.
@@ -415,8 +416,9 @@ ADX provides concise, actionable errors:
 
 Grammar/AST contract: see [docs/adx-grammar.md](./adx-grammar.md) (parser's source of truth).
 
-Compiler (repo root, package `adx`). M2 adds `--data`, page builds, composition,
-reactivity, and a measured benchmark on top of M1's single-component build.
+Compiler (repo root, package `project-adx-0`, CLI command `adx`). M2 adds
+`--data`, page builds, composition, reactivity, and a measured benchmark on top
+of M1's single-component build.
 
 ```bash
 # IMPLEMENTED (M1 + M2)
@@ -424,6 +426,7 @@ adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # single c
 adx build <page.json> [--out dist] [--tokens <path>]                  # page -> dist/[<slug>/]index.html
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component in-memory
 adx check <page.json> [--tokens <path>]                               # validate every page instance
+adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 npm run benchmark                                                     # measured token comparison (dev-only)
 
 # PLANNED
