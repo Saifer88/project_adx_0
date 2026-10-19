@@ -120,3 +120,20 @@ Gates (all green):
 - `npm test` (vitest run) → exit 0, **217 passed** (209 pre-existing + 8 in `test/init.test.ts`, up from 4). Existing suite unchanged; `test/serve.test.ts` parseArgs non-consumption case still passes → build/check/serve arg parsing byte-for-byte unchanged.
 - End-to-end through the BUILT CLI (`node dist/cli.js`) in an OS temp dir: `init demo-app` → exit 0 (7 files + next steps); `build hello-card`, `build index.json`, `check hello-card`, `check index.json` → all exit 0; `dist/index.html` now leads with a single `<h1>Hello, ADX</h1>`, has zero `<h2>`, contains the greeting, and the emitted `style.css` contains `min-height`; re-running `init demo-app` → exit 1 with the `[ADX] <path>/hello-card/manifest.json - already exists` clobber error, nothing overwritten.
 - Temp dirs removed; no hanging `serve` processes.
+
+---
+
+## Verification note (iteration 3 — review findings addressed)
+
+Addressed the one blocking finding from `init-review.json` (source `init-review-b`):
+
+- **BLOCKING — Ungated, untokenized Dismiss transition**: `src/scaffold.ts` `.dismiss` previously declared `transition: background-color 0.12s ease, opacity 0.12s ease` — a raw, non-token timing with no `prefers-reduced-motion: reduce` override, violating the token-driven + reduced-motion motion baseline. Applied the reviewer's narrowest suggested fix: removed the `transition` entirely. The `:hover` (background → `secondary`) and `:active` (opacity `0.85`) feedback remain, now applying instantly (within the ~80–150ms feedback window) via color/opacity only — no layout-shifting transform and no animated motion to gate, so no reduced-motion override is required. The stale "Feedback via color only — no layout-shifting transform." comment that sat above the removed transition was dropped.
+- **NON-BLOCKING — CSS comments fold into the next declaration**: left as-is per both reviewers ("No action required for this change"); emitted CSS is valid and token values resolve correctly.
+
+Gates (all green):
+
+- `npm run build` → exit 0 (tsc).
+- `npm run lint` → exit 0 (eslint).
+- `npm test` (vitest run) → **217 passed** (23 files). `test/init.test.ts` 8/8 still pass (the suite asserted `min-height` survives, not the transition, so removing it needed no test change); `test/serve.test.ts` parseArgs non-consumption case still passes → build/check/serve arg parsing byte-for-byte unchanged.
+- End-to-end through the BUILT CLI (`node dist/cli.js`) in an OS temp dir: `init demo-app` → exit 0 (7 files + next steps); `build hello-card`, `build index.json`, `check hello-card`, `check index.json` → all exit 0; `dist/index.html` has the greeting, exactly one `<h1>`, zero `<h2>`; `grep transition dist/` → 0 matches across all emitted CSS/JS (the ungated motion is gone); re-running `init demo-app` → exit 1 with `[ADX] <path>/hello-card/manifest.json - already exists; refusing to overwrite`, nothing overwritten.
+- Temp dir removed; no hanging `serve` processes.

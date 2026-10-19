@@ -102,8 +102,6 @@ const STYLE = `@use tokens;
   weight: tokens.weight-medium;
   border: none;
   cursor: pointer;
-  /* Feedback via color only — no layout-shifting transform. */
-  transition: background-color 0.12s ease, opacity 0.12s ease;
 }
 
 .dismiss:hover {
