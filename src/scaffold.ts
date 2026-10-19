@@ -35,9 +35,15 @@ const MANIFEST = `{
 }
 `;
 
-/** `hello-card/structure.adx` — semantic card, token-styled, interpolated text. */
+/**
+ * `hello-card/structure.adx` — semantic card, token-styled, interpolated text.
+ * The card title is the single-card starter page's main heading, so it is an
+ * `<h1>`: the compiled page then has exactly one `<h1>` and never skips a
+ * heading level (SEO/a11y baseline). A multi-card page would reserve the `<h1>`
+ * for a page header and demote this; the minimal starter has only this card.
+ */
 const STRUCTURE = `<article .card>
-  <h2 .title>{{title}}</h2>
+  <h1 .title>{{title}}</h1>
   <p .message>{{message}}</p>
   <button .dismiss type="button" @click="onDismiss">Dismiss</button>
 </article>
@@ -85,14 +91,27 @@ const STYLE = `@use tokens;
 
 .dismiss {
   align-self: flex-start;
+  /* Token-sized min-height keeps the control at/above the 44px touch target
+     the UX baseline requires (space-12 = 48px). */
+  min-height: tokens.space-12;
   pad: tokens.space-2 tokens.space-4;
   bg: tokens.primary;
   color: tokens.surface-0;
   radius: tokens.radius-md;
-  size: tokens.text-sm;
+  size: tokens.text-base;
   weight: tokens.weight-medium;
   border: none;
   cursor: pointer;
+  /* Feedback via color only — no layout-shifting transform. */
+  transition: background-color 0.12s ease, opacity 0.12s ease;
+}
+
+.dismiss:hover {
+  bg: tokens.secondary;
+}
+
+.dismiss:active {
+  opacity: 0.85;
 }
 `;
 

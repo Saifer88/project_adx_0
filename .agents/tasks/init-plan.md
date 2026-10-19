@@ -101,3 +101,22 @@ All gates green:
 - Temp dirs removed; no hanging `serve` processes.
 
 Implementation summary: new `src/scaffold.ts` (embedded templates + `scaffoldProject`/`SCAFFOLD_FILES`, clobber-guards before any write, node built-ins only); `src/cli.ts` gains the `init` dispatch (`runInit`), usage line, and top-of-file doc comment, leaving `parseArgs`/`serve`/`main`'s serve branch/`isEntryPoint` untouched; `test/init.test.ts` added; docs synced (`agent-reference.md`, `human-guide.md`, `roadmap.md`, `README.md`).
+
+---
+
+## Verification note (iteration 2 — review findings addressed)
+
+Addressed all four findings from `init-review.json`:
+
+- **BLOCKING — Missing root-page `<h1>`**: the starter `hello-card` now leads with `<h1 .title>` instead of `<h2>` (`src/scaffold.ts` STRUCTURE). For the single-card starter the card title IS the page's main heading, so the compiled `dist/index.html` now has exactly one `<h1>` and skips no heading level, satisfying the SEO/a11y baseline. The page compile test now pins the hierarchy (`h1Count === 1` and no `<h2>`).
+- **BLOCKING — Undersized/feedback-free Dismiss control**: `.dismiss` gained `min-height: tokens.space-12` (48px, ≥ the 44px touch-target baseline), bumped text to `text-base`, and non-layout-shifting feedback via `.dismiss:hover` (background color → `secondary`) and `.dismiss:active` (opacity), with a `transition` on color/opacity only (no transform). The component compile test asserts `min-height` survives into the emitted CSS.
+- **NON-BLOCKING — Embedded tokens hand-synced duplicate**: added a test asserting the scaffolded `tokens/design-tokens.json` is byte-identical to the repo's `tokens/design-tokens.json`, so drift fails CI instead of going silent.
+- **NON-BLOCKING — CLI runInit layer untested**: added a `describe("adx init CLI dispatch")` block exercising `run({ command: "init", ... })` for bare-`init` → CWD resolution, `init <name>` → `./<name>` with a `cd` next-step, and the clobber path returning exit 1 with the `[ADX] ... already exists` stderr while writing nothing.
+
+Gates (all green):
+
+- `npm run build` → exit 0 (tsc).
+- `npm run lint` → exit 0 (eslint).
+- `npm test` (vitest run) → exit 0, **217 passed** (209 pre-existing + 8 in `test/init.test.ts`, up from 4). Existing suite unchanged; `test/serve.test.ts` parseArgs non-consumption case still passes → build/check/serve arg parsing byte-for-byte unchanged.
+- End-to-end through the BUILT CLI (`node dist/cli.js`) in an OS temp dir: `init demo-app` → exit 0 (7 files + next steps); `build hello-card`, `build index.json`, `check hello-card`, `check index.json` → all exit 0; `dist/index.html` now leads with a single `<h1>Hello, ADX</h1>`, has zero `<h2>`, contains the greeting, and the emitted `style.css` contains `min-height`; re-running `init demo-app` → exit 1 with the `[ADX] <path>/hello-card/manifest.json - already exists` clobber error, nothing overwritten.
+- Temp dirs removed; no hanging `serve` processes.
