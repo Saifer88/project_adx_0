@@ -41,8 +41,16 @@ The publish workflow authenticates to npm with a repository secret named
    Token → Granular Access Token** (as of late 2025 npm only issues granular
    tokens; classic/Automation tokens have been removed). Configure it so CI can
    publish unattended:
-   - Scope it to the `project-adx-0` package with **Read and write** permission,
-     and set an expiry.
+   - **First publish (bootstrap).** `project-adx-0` does not exist on npm yet, so
+     you cannot scope a token to it — the package is not selectable until it has
+     been published once. Pick one of:
+     - Create a token with **Read and write** on **all packages** (or all under
+       your account), let the first push to `main` publish, then immediately
+       replace it with a package-scoped token and update the `NPM_TOKEN` secret; **or**
+     - Publish once manually from your machine (`npm run build` then `npm publish`),
+       which creates the package, then use a package-scoped token for CI from then on.
+   - **After the package exists**, scope the token to the `project-adx-0` package
+     with **Read and write** permission, and set an expiry.
    - **Enable "Bypass two-factor authentication (2FA)".** This box is unchecked
      by default. If your account enforces 2FA on publish and the token does not
      bypass it, `npm publish` in Actions fails with an OTP prompt the workflow
