@@ -1,0 +1,13 @@
+{
+  "approved": true,
+  "findings": [
+    {
+      "label": "Raw head is unescaped (trust boundary)",
+      "severity": "info",
+      "confidence": "confirmed",
+      "blocking": false,
+      "detail": "assets.head strings are injected verbatim into <head>, including any <script>/<style> an author places there, which can bypass the 'author JS after glue' and 'no blocking head script' guarantees. Intended author-trusted escape hatch, documented in agent-reference, architecture, and human-guide. Keep it author-only; never wire untrusted input into it. No change required."
+    }
+  ],
+  "reviewDoc": "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/assets-review-opus.md"
+}

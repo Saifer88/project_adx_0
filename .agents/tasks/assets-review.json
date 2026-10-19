@@ -1,0 +1,25 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "Raw head is unescaped (trust boundary)",
+      "severity": "info",
+      "confidence": "confirmed",
+      "blocking": false,
+      "detail": "assets.head strings are injected verbatim into <head>, including any <script>/<style> an author places there, which can bypass the 'author JS after glue' and 'no blocking head script' guarantees. Intended author-trusted escape hatch, documented in agent-reference, architecture, and human-guide. Keep it author-only; never wire untrusted input into it. No change required.",
+      "source": "opus"
+    },
+    {
+      "label": "Check-path assertion is non-discriminating",
+      "severity": "nit",
+      "confidence": "confirmed",
+      "blocking": false,
+      "detail": "test/site-config.test.ts:134-140 only asserts that a page which is valid without site configuration does not throw, so the test would still pass if checkPage stopped forwarding sitePath. Assert a site-only observable, such as a site-labeled error from a deliberately malformed temporary config.",
+      "source": "gpt"
+    }
+  ],
+  "reviewDoc": [
+    "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/assets-review-opus.md",
+    "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/assets-review-gpt.md"
+  ]
+}
