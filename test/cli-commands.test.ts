@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseArgs, run } from "../src/cli.js";
+import { parseArgs, run, usage } from "../src/cli.js";
 import type { ParsedArgs } from "../src/cli.js";
 
 /** A fully-populated ParsedArgs with overrides, so each test states only the
@@ -39,10 +39,12 @@ describe("adx tokens", () => {
 
     expect(code).toBe(0);
     const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
-    // Known real tokens from tokens/design-tokens.json, each with its value.
-    expect(printed).toMatch(/space-4\s+16px/);
-    expect(printed).toMatch(/primary\s+#1d4ed8/);
-    expect(printed).toMatch(/radius-md\s+8px/);
+    // Known real tokens from tokens/design-tokens.json, each rendered as the
+    // documented `name = value` row (the ` = ` delimiter is required, not just
+    // whitespace alignment).
+    expect(printed).toMatch(/space-4\s+= 16px/);
+    expect(printed).toMatch(/primary\s+= #1d4ed8/);
+    expect(printed).toMatch(/radius-md\s+= 8px/);
     // Grouped by category.
     expect(printed).toContain("spacing:");
     expect(printed).toContain("colors:");
@@ -68,7 +70,8 @@ describe("adx tokens", () => {
 
       expect(code).toBe(0);
       const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
-      expect(printed).toMatch(/space-x\s+1px/);
+      // Override row also uses the documented `name = value` delimiter.
+      expect(printed).toMatch(/space-x\s+= 1px/);
     });
 
     it("reports an [ADX] error and exits 1 on malformed JSON", () => {
@@ -154,5 +157,29 @@ describe("parseArgs is unchanged by the new commands", () => {
     const args = parseArgs(["tokens", "--tokens", "custom/tokens.json"]);
     expect(args.command).toBe("tokens");
     expect(args.tokens).toBe("custom/tokens.json");
+  });
+});
+
+describe("short usage() is the pre-tokens/help literal (error path unchanged)", () => {
+  // Regression: `usage()` is embedded in build/check/init missing-target
+  // errors, so it must stay byte-for-byte the legacy four-line listing
+  // (build/check/init/serve). The full six-command listing with descriptions
+  // belongs to `adx help` only, so tokens/help must NOT leak into usage().
+  it("lists exactly the four legacy commands, verbatim", () => {
+    expect(usage()).toBe(
+      [
+        "Usage:",
+        "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
+        "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+        "  adx init [name]",
+        "  adx serve [dir] [--port 3000] [--host localhost]",
+      ].join("\n"),
+    );
+  });
+
+  it("does not mention the tokens or help subcommands", () => {
+    const text = usage();
+    expect(text).not.toContain("adx tokens");
+    expect(text).not.toContain("adx help");
   });
 });

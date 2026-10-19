@@ -33,7 +33,7 @@ export { loadManifest, parseManifest } from "./manifest/load.js";
 export type { Manifest, PropDef, PropType, SeoMeta } from "./manifest/types.js";
 
 export { loadTokens, parseTokens } from "./tokens/load.js";
-export type { TokenTable, RawTokens } from "./tokens/types.js";
+export type { TokenTable, TokenGroup, RawTokens } from "./tokens/types.js";
 
 export { scanBehavior, EXPORT_RE } from "./behavior/scan.js";
 export type { BehaviorApi } from "./behavior/types.js";

@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import type { RawTokens, TokenTable } from "./types.js";
+import type { RawTokens, TokenGroup, TokenTable } from "./types.js";
 
 /** Load the token table from `path` (the design-tokens.json file). */
 export function loadTokens(path: string): TokenTable {
@@ -20,17 +20,24 @@ export function parseTokens(raw: string): TokenTable {
   const data = JSON.parse(raw) as RawTokens;
   const flat = new Map<string, string>();
   const spacingIndices: string[] = [];
+  // Preserve the category structure (and file order) that `flat` discards, so
+  // callers like `adx tokens` can render a grouped listing from loader-owned
+  // data instead of re-parsing the source file.
+  const grouped: TokenGroup[] = [];
 
   for (const [group, entries] of Object.entries(data)) {
     if (typeof entries !== "object" || entries === null) {
       continue; // skip scalar meta fields like "$schema-note"
     }
+    const groupEntries: Array<[string, string]> = [];
     for (const [name, value] of Object.entries(entries)) {
       flat.set(name, value);
+      groupEntries.push([name, value]);
       if (group === "spacing" && name.startsWith("space-")) {
         spacingIndices.push(name.slice("space-".length));
       }
     }
+    grouped.push({ group, entries: groupEntries });
   }
 
   const normalize = (ref: string): string =>
@@ -53,6 +60,9 @@ export function parseTokens(raw: string): TokenTable {
     },
     names(): string[] {
       return [...flat.keys()];
+    },
+    groups(): TokenGroup[] {
+      return grouped;
     },
   };
 }

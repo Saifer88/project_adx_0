@@ -13,6 +13,14 @@ export interface RawTokens {
   [group: string]: Record<string, string> | string | undefined;
 }
 
+/** A single token category and its `name -> value` entries, in file order. */
+export interface TokenGroup {
+  /** Category name, e.g. "spacing", "colors". */
+  group: string;
+  /** The group's tokens as `[name, value]` pairs, in file order. */
+  entries: Array<[name: string, value: string]>;
+}
+
 /** Resolved token table queried by the compiler as `tokens.<name>`. */
 export interface TokenTable {
   /** Resolve a `tokens.<name>` reference (or bare `<name>`) to its value. */
@@ -23,4 +31,10 @@ export interface TokenTable {
   availableSpacing(): string;
   /** All token names (without the `tokens.` prefix). */
   names(): string[];
+  /**
+   * Tokens grouped by category, in file order, preserving the category
+   * structure the flat `name -> value` table drops. Used by `adx tokens` to
+   * render a grouped listing without re-reading/re-parsing the source file.
+   */
+  groups(): TokenGroup[];
 }

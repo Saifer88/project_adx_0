@@ -596,7 +596,7 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestones 1 and 2 ship the build/check/serve/init commands below; the rest are planned.
+Milestones 1 and 2 ship the init/build/check/serve/tokens/help commands below; the rest are planned.
 
 ```bash
 # Working today (M1 + M2)

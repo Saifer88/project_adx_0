@@ -65,7 +65,6 @@ import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
 import { scaffoldProject } from "./scaffold.js";
 import { loadTokens } from "./tokens/load.js";
-import type { RawTokens } from "./tokens/types.js";
 import type { ComponentAsset } from "./codegen/glue.js";
 
 interface ParsedArgs {
@@ -140,8 +139,10 @@ function loadData(path: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-// Single source of truth for the command listing so `usage()` (short, error
-// form) and `helpText()` (full `adx help` output) cannot drift. Each entry is
+// Single source for the full `adx help` listing (every implemented command with
+// its flags and a one-line description). The short error-path `usage()` is kept
+// as a separate verbatim literal so build/check/init error stderr stays
+// byte-for-byte unchanged; only `helpText()` consumes this table. Each entry is
 // the invocation line plus a one-line description.
 const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   {
@@ -172,10 +173,24 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   },
 ];
 
-/** Short usage shown on errors (bare/unknown command, missing arg): the
- * invocation lines only, to stderr. */
+/**
+ * Short usage shown on errors (bare/unknown command, missing arg) to stderr.
+ *
+ * This is intentionally the pre-tokens/help literal, preserved verbatim so that
+ * build/check/init missing-target errors emit byte-for-byte identical stderr as
+ * before these subcommands were added. The full six-command listing (with
+ * descriptions) lives only in `helpText()`, reached via the explicit `adx help`
+ * command — `tokens`/`help` are discoverable there, not injected into every
+ * command's error path.
+ */
 function usage(): string {
-  return ["Usage:", ...COMMANDS.map((c) => `  ${c.invocation}`)].join("\n");
+  return [
+    "Usage:",
+    "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
+    "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+    "  adx init [name]",
+    "  adx serve [dir] [--port 3000] [--host localhost]",
+  ].join("\n");
 }
 
 /** Full help printed by `adx help`: every command with its one-line
@@ -199,7 +214,8 @@ function helpText(): string {
  * resolved from this compiled module's location (`import.meta.url` → dist/cli.js
  * → up to the package root) so a GLOBAL install still finds it rather than
  * looking in the user's CWD. A `--tokens <path>` override is resolved against
- * CWD, exactly as build/check resolve their token paths.
+ * CWD, exactly as build/check resolve their token paths. The grouped listing is
+ * rendered from the loader's `groups()` (one read/parse, loader-owned values).
  */
 function runTokens(args: ParsedArgs): number {
   const path = args.tokens
@@ -212,24 +228,24 @@ function runTokens(args: ParsedArgs): number {
       );
 
   try {
-    // Route the read+validation through the shared loader so a missing or
-    // malformed file throws here and produces the same `[ADX] …` error path as
-    // the other commands. The returned table is intentionally unused: the
-    // grouped listing below reads the raw JSON to preserve category structure.
-    loadTokens(path);
-    const data = JSON.parse(readFileSync(path, "utf8")) as RawTokens;
+    // Read + validate through the shared loader exactly once: a missing or
+    // malformed file throws here and takes the same `[ADX] …` error path as the
+    // other commands. The loader also preserves category grouping (TokenTable
+    // .groups()), so the listing is rendered entirely from loader-owned data —
+    // no second read/parse of the source file.
+    const table = loadTokens(path);
 
     const out: string[] = [];
-    for (const [group, entries] of Object.entries(data)) {
-      if (typeof entries !== "object" || entries === null) {
-        continue; // skip scalar meta fields like "$schema-note"
-      }
+    for (const { group, entries } of table.groups()) {
       out.push(`${group}:`);
-      // Align values on a single column within each group for a scannable list.
-      const names = Object.keys(entries);
-      const width = names.reduce((max, name) => Math.max(max, name.length), 0);
-      for (const [name, value] of Object.entries(entries)) {
-        out.push(`  ${name.padEnd(width)}  ${value}`);
+      // Align the ` = ` delimiter on a single column within each group for a
+      // scannable `name = value` list.
+      const width = entries.reduce(
+        (max, [name]) => Math.max(max, name.length),
+        0,
+      );
+      for (const [name, value] of entries) {
+        out.push(`  ${name.padEnd(width)} = ${value}`);
       }
       out.push("");
     }
