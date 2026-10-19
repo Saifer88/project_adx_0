@@ -1,0 +1,8 @@
+{
+  "assets": {
+    "css": ["/tailwind.css"],
+    "js": [{ "src": "./site.js", "type": "module", "defer": true }],
+    "head": ["<link rel=\"preconnect\" href=\"https://fonts.example\" />"]
+  },
+  "lang": "en"
+}

@@ -1,0 +1,18 @@
+{
+  "page": "styled",
+  "title": "Styled page",
+  "description": "A page that brings its own design-library assets.",
+  "lang": "en",
+  "schema": "WebPage",
+  "assets": {
+    "css": ["/tailwind.css", "./page-extra.css"],
+    "js": [{ "src": "./styled.js", "type": "module", "defer": true }],
+    "head": ["<meta name=\"theme-color\" content=\"#1d4ed8\" />"]
+  },
+  "components": [
+    {
+      "use": "../user-card",
+      "data": { "name": "Ada Lovelace", "role": "Founder", "bio": "First programmer." }
+    }
+  ]
+}

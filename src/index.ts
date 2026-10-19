@@ -81,8 +81,20 @@ export type {
 export { repoRoot, scopeLocation } from "./codegen/scope-location.js";
 
 export { loadPage, parsePage } from "./page/load.js";
-export type { PageManifest, PageComponent } from "./page/types.js";
-export { compilePage, checkPage, wrapPageDocument } from "./page/compile.js";
+export { loadSite, parseSite } from "./page/site.js";
+export type {
+  PageManifest,
+  PageComponent,
+  PageAssets,
+  PageAssetScript,
+  SiteConfig,
+} from "./page/types.js";
+export {
+  compilePage,
+  checkPage,
+  wrapPageDocument,
+  mergeAssets,
+} from "./page/compile.js";
 export type {
   CompilePageOptions,
   CompiledPage,

@@ -602,10 +602,10 @@ Milestones 1 and 2 ship the init/build/check/serve/tokens/help commands below; t
 # Working today (M1 + M2)
 adx init [name]                                                       # scaffold a new starter project (./<name>, or the current dir)
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
-adx build <page.json> [--out dist] [--tokens <path>]                  # compile a page (composes components) to one index.html
+adx build <page.json> [--out dist] [--tokens <path>] [--site <site.json>]  # compile a page (composes components); --site merges shared assets
 adx serve [dir] [--port 3000] [--host localhost]                      # preview a build locally (static server, does not compile)
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component (prints OK, or an [ADX] error)
-adx check <page.json> [--tokens <path>]                               # validate every component instance on a page
+adx check <page.json> [--tokens <path>] [--site <site.json>]          # validate every component instance on a page
 adx tokens [--tokens <path>]                                          # list every design token (name = value), grouped by category
 adx help                                                              # show the full command listing and exit
 npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
@@ -769,6 +769,89 @@ node dist/cli.js check fixtures/site/about.json
 `check` on a page validates every instance's required props, so it fails with the
 child's `[ADX] manifest.json - Missing required prop ...` if any instance is
 missing data.
+
+### Using Tailwind (or any CSS library) with ADX
+
+ADX lets a page bring its own external CSS/JS without hacking a CDN `<script>`
+into a component. You declare them under an `assets` block — either per page, or
+once in a shared site config applied with `--site`.
+
+The recommended Tailwind path is **build-time static CSS**: run the Tailwind CLI
+yourself to produce a plain stylesheet, then point ADX at it. ADX never runs
+Tailwind — it just references the file you generated.
+
+**Asset strings are browser URLs, not filesystem paths.** Each entry in
+`assets.css`/`assets.js` is resolved by the browser relative to the *emitted
+document*, exactly like any `href`/`src`. ADX writes each non-root page to
+`<out>/<slug>/index.html` (the root page goes to `<out>/index.html`), and it
+does **not** copy or relocate your asset files. So a page-relative `"./x.css"`
+only resolves if `x.css` sits beside that page's `index.html`. For a stylesheet
+shared across several pages, use a **root-absolute URL** (`"/tailwind.css"`) and
+put the file at your output root (`dist/tailwind.css`) so every page resolves it
+the same way.
+
+```bash
+# 1. Generate a static stylesheet with the Tailwind CLI (your toolchain, not ADX).
+#    Write it to your output root so the served URL below resolves from any page.
+npx tailwindcss -i src/input.css -o dist/tailwind.css --minify
+```
+
+```json
+// site/site.json — shared across every page, passed via --site
+{
+  "assets": {
+    "css": ["/tailwind.css"],
+    "head": ["<link rel=\"preconnect\" href=\"https://fonts.example\" />"]
+  },
+  "lang": "en"
+}
+```
+
+A page can add its own assets too; they merge after the site's (shared library
+listed in both links once). Page-only assets that live beside the page can use a
+page-relative URL (`"./page-extra.css"` resolves to `dist/styled/page-extra.css`
+for the non-root `styled` page):
+
+```json
+// site/styled.json
+{
+  "page": "styled",
+  "title": "Styled page",
+  "description": "A page that brings its own design-library assets.",
+  "assets": {
+    "css": ["/tailwind.css", "./page-extra.css"],
+    "js": [{ "src": "./styled.js", "type": "module", "defer": true }],
+    "head": ["<meta name=\"theme-color\" content=\"#1d4ed8\" />"]
+  },
+  "components": [
+    { "use": "../user-card", "data": { "name": "Ada Lovelace" } }
+  ]
+}
+```
+
+```bash
+# 2. Build the page with the shared site config.
+node dist/cli.js build site/styled.json --site site/site.json --out dist
+```
+
+In the emitted HTML the Tailwind link sits right after ADX's own `style.css`
+(so your utilities can override component styles via normal cascade), your raw
+`head` snippets follow, and any `assets.js` scripts are emitted after ADX's
+hydration glue — so the page is styled and crawlable with no JavaScript required.
+(That ordering is a markup guarantee, not a runtime one: ADX's glue is a deferred
+module, so a plain author script can still run before it. If your script needs
+the hydrated DOM, use `"type": "module"`/`"defer": true` or wait for
+`DOMContentLoaded`.)
+
+**Why not the Tailwind Play CDN?** The CDN is a runtime `<script>` that generates
+CSS in the browser. That means styling depends on third-party JavaScript running
+before the page looks right — it hurts first paint and is invisible to crawlers
+that do not run JS, breaking ADX's static/SEO contract. Build-time static CSS has
+none of those costs. External `assets.js` is allowed for genuine client behavior,
+but keep runtime-heavy libraries out of the critical path for the same reason.
+(Note: ADX does not check that the stylesheet exists — it only references it —
+and it never copies asset files, so generate the file at the URL you declared
+before serving.)
 
 ## Configuration
 

@@ -2,12 +2,14 @@
 /**
  * ADX compiler CLI (Milestone 1): `adx build` and `adx check` only.
  *
- *   adx build <componentDir> [--out dist] [--tokens tokens/design-tokens.json]
+ *   adx build <componentDir|page.json> [--out dist] [--tokens ...] [--site site.json]
  *       Compiles the component and writes <out>/<dir-basename>/index.html,
  *       style.css, glue.js, behavior.js. The output folder is the component
- *       directory's basename (e.g. `user-card`), not the manifest name.
+ *       directory's basename (e.g. `user-card`), not the manifest name. For a
+ *       page, `--site <path>` merges a shared site config's external assets
+ *       (CSS/JS/head) ahead of the page's own (build/check only; no discovery).
  *
- *   adx check <componentDir> [--tokens ...]
+ *   adx check <componentDir|page.json> [--tokens ...] [--site site.json]
  *       Validates + emits in-memory, writes nothing. Prints "OK" and exits 0 on
  *       success, or the `[ADX] ...` error and exits 1 on failure.
  *
@@ -73,6 +75,10 @@ interface ParsedArgs {
   out: string;
   tokens: string | undefined;
   data: string | undefined;
+  // build/check-only: path to a site config (--site). Its value token is always
+  // consumed by parseArgs so it can never leak into `dir`, but it is only
+  // stored for build/check (see parseArgs).
+  site: string | undefined;
   // serve-only options; undefined when omitted so defaults (3000/localhost)
   // can apply and an explicitly bad --port can be rejected (see serve()).
   port: number | undefined;
@@ -87,6 +93,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     out: "dist",
     tokens: undefined,
     data: undefined,
+    site: undefined,
     port: undefined,
     host: undefined,
   };
@@ -102,6 +109,13 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.tokens = rest[++i];
     } else if (arg === "--data") {
       parsed.data = rest[++i];
+    } else if (arg === "--site") {
+      // ALWAYS consume the value token (even for serve/tokens/init) so it can
+      // never be captured as the positional `dir`; only STORE it for build/check.
+      const value = rest[++i];
+      if (command === "build" || command === "check") {
+        parsed.site = value;
+      }
     } else if (isServe && arg === "--port") {
       // Only accept a finite integer in the valid TCP range; leave undefined
       // otherwise so main() can report `[ADX] --port <v> - invalid port`.
@@ -151,12 +165,12 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   },
   {
     invocation:
-      "adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
+      "adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>] [--site <site.json>]",
     description: "Compile a component or page to static HTML/CSS/JS.",
   },
   {
     invocation:
-      "adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+      "adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>] [--site <site.json>]",
     description: "Validate + emit in-memory; writes nothing (prints OK).",
   },
   {
@@ -186,8 +200,8 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
 function usage(): string {
   return [
     "Usage:",
-    "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
-    "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+    "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>] [--site <site.json>]",
+    "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>] [--site <site.json>]",
     "  adx init [name]",
     "  adx serve [dir] [--port 3000] [--host localhost]",
   ].join("\n");
@@ -440,9 +454,14 @@ function runComponent(args: ParsedArgs): number {
 /** Build/check a page manifest. Writes one `index.html` per clean URL. */
 function runPage(args: ParsedArgs): number {
   const pageFile = args.dir as string;
-  const opts: { tokensPath?: string } = {};
+  const opts: { tokensPath?: string; sitePath?: string } = {};
   if (args.tokens) {
     opts.tokensPath = args.tokens;
+  }
+  // Resolve --site against CWD (like --tokens) BEFORE the check/build split so
+  // both branches reuse the one `opts` and merge site assets identically.
+  if (args.site) {
+    opts.sitePath = resolve(args.site);
   }
 
   if (args.command === "check") {

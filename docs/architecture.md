@@ -291,6 +291,39 @@ single-component build (M1-stable) and the repo-relative POSIX path for page and
 composed children, so two deps with the same basename in different folders never
 collide.
 
+### External design-library assets (pages only)
+
+A page (and an optional `--site` site config) can reference external CSS/JS via
+an `assets` object, so a design library like Tailwind composes with ADX without
+breaking the static contract. The page document owner (`wrapPageDocument`) is the
+sole emitter: external `assets.css` becomes `<link rel="stylesheet">` in `<head>`
+after the token `style.css`; raw `assets.head` strings are injected verbatim
+(author-trusted); `assets.js` scripts are emitted in document order after the
+hydration glue, before `</body>`. Assets-free pages compile byte-for-byte as
+before.
+
+This fits the SEO/static contract deliberately:
+
+- **External CSS is SEO-safe** — a `<link>` to a build-time static stylesheet (the
+  blessed Tailwind path: author runs the Tailwind CLI, ADX references the output)
+  adds no runtime JavaScript and does not move content out of the HTML. Styling is
+  fully present for a crawler that never runs JS.
+- **External JS is allowed but author-owned**, and the docs warn against
+  runtime-heavy libraries (e.g. the Tailwind Play CDN that generates CSS in the
+  browser): it is emitted in document order after ADX's own module, so nothing
+  an author adds can appear before the glue in the markup, but it is still
+  client code outside the static guarantee. This is a **markup-order** promise,
+  not a runtime one — the glue is a deferred `type="module"` script, so a
+  classic/shorthand author script runs when the parser reaches it (before the
+  deferred glue executes) and an `async` entry is unordered; hydration-dependent
+  code must wait for a readiness signal (`type="module"`/`defer` or
+  `DOMContentLoaded`) rather than assume the glue has already run.
+- **Assets never move content into JavaScript** — they only reference sidecar
+  files; the real content stays in the static markup.
+- **Scope is pages/documents only** (not components or standalone builds), and
+  **asset reachability is not validated** — the compiler references the files, it
+  does not fetch, read, or bundle them, and the author runs any toolchain.
+
 ### Build-time execution of `setup()` (Trusted Code)
 
 To emit real content, `build` and `check` execute `setup()` and referenced

@@ -14,6 +14,7 @@ function argsFor(overrides: Partial<ParsedArgs>): ParsedArgs {
     out: "dist",
     tokens: undefined,
     data: undefined,
+    site: undefined,
     port: undefined,
     host: undefined,
     ...overrides,
@@ -158,6 +159,46 @@ describe("parseArgs is unchanged by the new commands", () => {
     expect(args.command).toBe("tokens");
     expect(args.tokens).toBe("custom/tokens.json");
   });
+
+  it("stores --site only for build/check", () => {
+    expect(parseArgs(["build", "page.json", "--site", "site.json"]).site).toBe(
+      "site.json",
+    );
+    expect(parseArgs(["check", "page.json", "--site", "site.json"]).site).toBe(
+      "site.json",
+    );
+  });
+
+  it("consumes the --site value for serve/tokens/init so it never leaks into dir", () => {
+    const served = parseArgs(["serve", "dist", "--site", "site.json"]);
+    expect(served.site).toBeUndefined();
+    expect(served.dir).toBe("dist");
+
+    const toks = parseArgs(["tokens", "--site", "site.json"]);
+    expect(toks.site).toBeUndefined();
+    expect(toks.dir).toBeUndefined();
+
+    const inited = parseArgs(["init", "myapp", "--site", "site.json"]);
+    expect(inited.site).toBeUndefined();
+    expect(inited.dir).toBe("myapp");
+  });
+
+  it("does not disturb serve --port/--host gating when --site is present", () => {
+    const served = parseArgs([
+      "serve",
+      "dist",
+      "--site",
+      "s.json",
+      "--port",
+      "4000",
+      "--host",
+      "0.0.0.0",
+    ]);
+    expect(served.port).toBe(4000);
+    expect(served.host).toBe("0.0.0.0");
+    expect(served.dir).toBe("dist");
+    expect(served.site).toBeUndefined();
+  });
 });
 
 describe("short usage() is the pre-tokens/help literal (error path unchanged)", () => {
@@ -169,8 +210,8 @@ describe("short usage() is the pre-tokens/help literal (error path unchanged)", 
     expect(usage()).toBe(
       [
         "Usage:",
-        "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
-        "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+        "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>] [--site <site.json>]",
+        "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>] [--site <site.json>]",
         "  adx init [name]",
         "  adx serve [dir] [--port 3000] [--host localhost]",
       ].join("\n"),

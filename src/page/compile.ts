@@ -23,12 +23,19 @@ import { createBuild } from "../codegen/compose.js";
 import { emitComponentAssets, type ComponentAsset } from "../codegen/glue.js";
 import { repoRoot, scopeLocation } from "../codegen/scope-location.js";
 import { loadPage } from "./load.js";
-import type { PageManifest } from "./types.js";
+import { loadSite } from "./site.js";
+import type { PageAssets, PageManifest } from "./types.js";
 
 /** Options for {@link compilePage}. */
 export interface CompilePageOptions {
   /** Path to the design-tokens JSON (forwarded to each component compile). */
   tokensPath?: string;
+  /**
+   * Path to a site config (the `--site` flag), resolved against CWD by the
+   * caller. When set, its `assets` are merged ahead of the page's own assets
+   * and its `lang` fills in when the page omits `lang`. No implicit discovery.
+   */
+  sitePath?: string;
 }
 
 /** One used component on the page: its output filename stem + behavior src. */
@@ -127,9 +134,70 @@ export function compilePage(
   // single <script type="module" src="glue.js"> wires the whole page.
   const glue = emitPageEntry(components);
 
-  const html = wrapPageDocument(bodies, page);
+  // Site config is loaded ONLY when --site was passed (no implicit discovery),
+  // so a build with no --site is byte-for-byte as before. The site assets are
+  // the merge base (emitted first); the page's own assets are appended.
+  const site = opts.sitePath ? loadSite(resolve(opts.sitePath)) : undefined;
+  const mergedAssets = mergeAssets(site?.assets, page.assets);
+  // A site `lang` default fills in only when the page did not explicitly set
+  // one; `page.lang` is already defaulted to "en" by the loader, so it is the
+  // safe final fallback when there is no site config or the site omits `lang`.
+  const effectiveLang = page.langExplicit
+    ? page.lang
+    : (site?.lang ?? page.lang);
+
+  const html = wrapPageDocument(
+    bodies,
+    { ...page, lang: effectiveLang },
+    mergedAssets,
+  );
 
   return { page, html, css, glue, components };
+}
+
+/**
+ * Merge site `assets` (base) with page `assets` (appended), per field:
+ * `css` concatenates then dedupes by exact string (first wins, site-ordered);
+ * `js` concatenates then dedupes by `src` (first wins — a script loads once and
+ * its site-level flags are the shared intent); `head` concatenates with NO
+ * dedupe (raw strings; equality is ambiguous and a repeat is the author's
+ * choice). A missing side is treated as empty arrays. Pure + total on validated
+ * input — never throws — so `compilePage` and `checkPage` see identical output.
+ */
+export function mergeAssets(
+  site: PageAssets | undefined,
+  page: PageAssets | undefined,
+): PageAssets {
+  const css = dedupeStrings([...(site?.css ?? []), ...(page?.css ?? [])]);
+  const js = dedupeBySrc([...(site?.js ?? []), ...(page?.js ?? [])]);
+  const head = [...(site?.head ?? []), ...(page?.head ?? [])];
+  return { css, js, head };
+}
+
+/** Dedupe a string list by exact value, keeping first occurrence. */
+function dedupeStrings(list: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of list) {
+    if (!seen.has(value)) {
+      seen.add(value);
+      out.push(value);
+    }
+  }
+  return out;
+}
+
+/** Dedupe script entries by `src` (exact), keeping first occurrence. */
+function dedupeBySrc(list: PageAssets["js"]): PageAssets["js"] {
+  const seen = new Set<string>();
+  const out: PageAssets["js"] = [];
+  for (const entry of list) {
+    if (!seen.has(entry.src)) {
+      seen.add(entry.src);
+      out.push(entry);
+    }
+  }
+  return out;
 }
 
 /**
@@ -151,7 +219,11 @@ function resolveUse(pageDir: string, use: string, pageFile: string): string {
  * a schema-gated JSON-LD block (only when `page.schema` is present) whose
  * `@type` is the page schema and `name` is the page title.
  */
-export function wrapPageDocument(bodies: string[], page: PageManifest): string {
+export function wrapPageDocument(
+  bodies: string[],
+  page: PageManifest,
+  assets?: PageAssets,
+): string {
   const title = escapeHtml(page.title);
   const description = escapeHtml(page.description);
   const lang = escapeHtml(page.lang);
@@ -176,6 +248,27 @@ export function wrapPageDocument(bodies: string[], page: PageManifest): string {
 
   const body = indentBlock(bodies.join("\n"), 4);
 
+  // Assets splice in at fixed seams ONLY when their array is non-empty, so an
+  // absent/empty `assets` yields byte-for-byte today's document. Each fragment
+  // carries its own leading `\n  ` so an empty array contributes nothing.
+  // External stylesheets go AFTER the token `style.css` link so a design
+  // library can override component styles via normal cascade order.
+  const cssLinks = (assets?.css ?? [])
+    .map((href) => `\n  <link rel="stylesheet" href="${escapeHtml(href)}" />`)
+    .join("");
+  // Raw head snippets are author-trusted: emitted verbatim (NOT escaped); the
+  // leading `\n  ` is layout indentation only.
+  const rawHead = (assets?.head ?? []).map((raw) => `\n  ${raw}`).join("");
+  // Author scripts are emitted in document order AFTER the hydration glue, so
+  // they can never appear before ADX's own module in the markup. This is a
+  // MARKUP-ORDER guarantee, not a runtime one: the glue is a deferred
+  // `type="module"` script, so a classic author script (shorthand → no
+  // `type`/`defer`) still runs when the parser reaches it — before the deferred
+  // glue executes — and an `async` entry is unordered. Code that depends on a
+  // hydrated DOM must wait for a readiness signal (e.g. `type="module"`/`defer`
+  // or `DOMContentLoaded`); it must not assume the glue has already run.
+  const jsScripts = (assets?.js ?? []).map(scriptTag).join("");
+
   return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
@@ -185,16 +278,30 @@ export function wrapPageDocument(bodies: string[], page: PageManifest): string {
   <meta name="description" content="${description}" />
   <link rel="canonical" href="${canonical}" />
 ${og}${jsonLd}
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css" />${cssLinks}${rawHead}
 </head>
 <body>
   <main>
 ${body}
   </main>
-  <script type="module" src="glue.js"></script>
+  <script type="module" src="glue.js"></script>${jsScripts}
 </body>
 </html>
 `;
+}
+
+/**
+ * Serialize one `assets.js` entry to its own `<script>` line. Attribute order
+ * is fixed: `type` (if present), `src`, `defer` (if true), `async` (if true).
+ * `src`/`type` are escaped as attribute values; `defer`/`async` are bare
+ * boolean attributes. The leading `\n  ` places it on its own indented line.
+ */
+function scriptTag(script: PageAssets["js"][number]): string {
+  const type =
+    script.type !== undefined ? ` type="${escapeHtml(script.type)}"` : "";
+  const defer = script.defer ? " defer" : "";
+  const async = script.async ? " async" : "";
+  return `\n  <script${type} src="${escapeHtml(script.src)}"${defer}${async}></script>`;
 }
 
 /** Emit the tiny page entry module importing each component's hydration. */

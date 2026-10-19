@@ -124,6 +124,29 @@ into `./<name>` — or the current directory when the name is omitted or `.`. It
 refuses to overwrite an existing scaffold file (writing nothing on conflict),
 and the result builds and serves with the commands above with no `--data`.
 
+## Shipped — first-class external design-library assets (pages) ✅
+
+Pages can reference external CSS/JS (Tailwind or any design library) via an
+optional `assets` object (`css`/`js`/`head`) on the page manifest and/or a shared
+site config passed with `adx build/check <page.json> --site <site.json>` (explicit
+flag, no auto-discovery). Site assets are the merge base; page assets append;
+`css`/`js` dedupe first-wins (js by `src`), `head` is not deduped. The token
+`style.css` is emitted before external `assets.css` (so a library can override via
+cascade); the hydration glue is emitted before author `assets.js` in the markup
+(a document-order guarantee, not a runtime one — a classic/`async` author script
+can still run before the deferred glue). Raw `assets.head` is injected verbatim
+(author-trusted). Assets-free pages compile byte-for-byte as
+before. **Blessed Tailwind path:** build-time static CSS — the author runs the
+Tailwind CLI, ADX references the output and never runs Tailwind. Agents must not
+inject a runtime CSS CDN `<script>` into a component (the old "Tailwind CDN in the
+Navbar" pattern), which breaks the static/crawlable/minimal-JS contract. Scope is
+pages only; asset reachability is not validated.
+
+Future: **replace/override merge semantics** (a page clearing inherited assets) —
+not built, concat+dedupe only; **site-config auto-discovery** (implicit `site.json`
+lookup) — not built, explicit `--site` only; running Tailwind/any toolchain from
+the compiler — never; per-component or standalone-build assets — out of scope.
+
 ## Later milestones (unscheduled)
 Pattern library, dev server + hot reload, richer `adx create`/`pattern` CLI
 (beyond the shipped `adx init` scaffolder and `adx tokens` token listing),

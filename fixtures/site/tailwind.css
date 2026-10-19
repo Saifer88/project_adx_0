@@ -1,0 +1,19 @@
+/* Tailwind CLI output (static stub).
+ *
+ * In a real project this file is produced by running the Tailwind CLI, e.g.
+ *   npx tailwindcss -i src/input.css -o fixtures/site/tailwind.css --minify
+ * ADX never runs Tailwind; it only references this generated stylesheet via a
+ * page/site `assets.css` entry. This committed stub holds a few real rules so
+ * the fixture is self-contained and does NOT pull in Tailwind as a dependency.
+ */
+.container {
+  width: 100%;
+  margin-right: auto;
+  margin-left: auto;
+}
+.text-center {
+  text-align: center;
+}
+.font-bold {
+  font-weight: 700;
+}

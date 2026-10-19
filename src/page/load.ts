@@ -12,7 +12,12 @@
 
 import { readFileSync } from "node:fs";
 import { adxFileError } from "../errors.js";
-import type { PageComponent, PageManifest } from "./types.js";
+import type {
+  PageAssetScript,
+  PageAssets,
+  PageComponent,
+  PageManifest,
+} from "./types.js";
 
 /** Valid slug: lowercase alphanumerics in hyphen-separated groups. */
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -59,6 +64,7 @@ export function parsePage(raw: string, file: string): PageManifest {
   const canonical =
     optionalString(obj, "canonical", file) ?? defaultCanonical(page);
   const schema = optionalString(obj, "schema", file);
+  const assets = validateAssets(obj.assets, file);
 
   const manifest: PageManifest = {
     page,
@@ -71,7 +77,124 @@ export function parsePage(raw: string, file: string): PageManifest {
   if (schema !== undefined) {
     manifest.schema = schema;
   }
+  if (assets !== undefined) {
+    manifest.assets = assets;
+  }
+  // Loader-internal: a site `lang` default fills in only when the page did not
+  // explicitly set a string `lang` (an absent/non-string `lang` is not explicit).
+  if (typeof obj.lang === "string") {
+    manifest.langExplicit = true;
+  }
   return manifest;
+}
+
+/**
+ * Validate an `assets` object (shared by the page loader and the site loader,
+ * so page `assets` and site `assets` enforce identical rules). Returns
+ * `undefined` when `assets` is absent/undefined, else a normalized
+ * {@link PageAssets} with every array present and `js` shorthand strings
+ * expanded to `{ src }`. All errors use `[ADX] <file> - <msg>` via
+ * {@link adxFileError}; `<file>` is the caller's file (page path or site path).
+ */
+export function validateAssets(
+  value: unknown,
+  file: string,
+): PageAssets | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw adxFileError(file, `"assets" must be an object`);
+  }
+  const obj = value as Record<string, unknown>;
+
+  const css = validateCssList(obj.css, file);
+  const js = validateJsList(obj.js, file);
+  const head = validateHeadList(obj.head, file);
+  return { css, js, head };
+}
+
+function validateCssList(value: unknown, file: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw adxFileError(file, `"assets.css" must be an array of strings`);
+  }
+  for (const entry of value) {
+    // Non-empty = length > 0 with NO trimming (matches `requireString`), so a
+    // whitespace-only href like "  " is accepted verbatim and escaped later.
+    if (typeof entry !== "string" || entry.length === 0) {
+      throw adxFileError(file, `"assets.css" must be an array of strings`);
+    }
+  }
+  return value as string[];
+}
+
+function validateJsList(value: unknown, file: string): PageAssetScript[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw adxFileError(file, `"assets.js" must be an array of scripts`);
+  }
+  return value.map((entry) => validateJsEntry(entry, file));
+}
+
+function validateJsEntry(entry: unknown, file: string): PageAssetScript {
+  // PINNED three-way guard (mirrors `validateComponent`): a string is the
+  // shorthand; a plain object is the long form; anything else (null, array,
+  // number, boolean) takes THIS message — never a TypeError, never the
+  // missing-`src` message below. An empty-string shorthand normalizes to
+  // `{ src: "" }` and then fails the `src` rule (missing-`src` message).
+  if (typeof entry === "string") {
+    return normalizeJsSrc(entry, file);
+  }
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    throw adxFileError(
+      file,
+      `Each "assets.js" entry must be a string or an object with "src"`,
+    );
+  }
+  const obj = entry as Record<string, unknown>;
+  const script = normalizeJsSrc(obj.src, file);
+  if (obj.type !== undefined) {
+    if (typeof obj.type !== "string") {
+      throw adxFileError(file, `"assets.js" type must be a string`);
+    }
+    script.type = obj.type;
+  }
+  if (obj.defer !== undefined) {
+    if (typeof obj.defer !== "boolean") {
+      throw adxFileError(file, `"assets.js" defer must be a boolean`);
+    }
+    script.defer = obj.defer;
+  }
+  if (obj.async !== undefined) {
+    if (typeof obj.async !== "boolean") {
+      throw adxFileError(file, `"assets.js" async must be a boolean`);
+    }
+    script.async = obj.async;
+  }
+  return script;
+}
+
+function normalizeJsSrc(src: unknown, file: string): PageAssetScript {
+  if (typeof src !== "string" || src.length === 0) {
+    throw adxFileError(
+      file,
+      `Each "assets.js" entry must have a string "src"`,
+    );
+  }
+  return { src };
+}
+
+function validateHeadList(value: unknown, file: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw adxFileError(file, `"assets.head" must be an array of strings`);
+  }
+  for (const entry of value) {
+    // `head` has NO non-empty requirement: an empty-string entry is legal.
+    if (typeof entry !== "string") {
+      throw adxFileError(file, `"assets.head" must be an array of strings`);
+    }
+  }
+  return value as string[];
 }
 
 /** The canonical URL derived from the slug: `/` for root else `/<page>/`. */

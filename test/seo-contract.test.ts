@@ -67,4 +67,42 @@ describe("SEO contract — emitted HTML is crawlable without JS", () => {
     const scriptAt = html.indexOf('src="glue.js"');
     expect(scriptAt).toBeGreaterThan(headEnd);
   });
+
+  it("external assets stay SEO-safe: no {{, glue before author js, head verbatim, href escaped", () => {
+    const assetsHtml = wrapPageDocument(
+      [],
+      {
+        page: "index",
+        title: "T",
+        description: "D",
+        lang: "en",
+        canonical: "/",
+        components: [],
+      },
+      {
+        css: ['https://cdn.example/lib.css?a=1&b="x"'],
+        js: [{ src: "./author.js", type: "module", defer: true }],
+        head: ['<meta name="theme-color" content="#1d4ed8" />'],
+      },
+    );
+
+    // Assets introduce no unresolved interpolation.
+    expect(assetsHtml).not.toContain("{{");
+
+    // The glue module still sits after </head> and BEFORE the author script, so
+    // ADX's hydration is never blocked or reordered by an author asset.
+    const headEnd = assetsHtml.indexOf("</head>");
+    const glueAt = assetsHtml.indexOf('src="glue.js"');
+    const authorAt = assetsHtml.indexOf('src="./author.js"');
+    expect(glueAt).toBeGreaterThan(headEnd);
+    expect(glueAt).toBeLessThan(authorAt);
+
+    // Raw head is emitted verbatim; the css href attribute value is escaped.
+    expect(assetsHtml).toContain(
+      '<meta name="theme-color" content="#1d4ed8" />',
+    );
+    expect(assetsHtml).toContain(
+      'href="https://cdn.example/lib.css?a=1&amp;b=&quot;x&quot;"',
+    );
+  });
 });

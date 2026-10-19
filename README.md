@@ -119,6 +119,7 @@ grows. Edit source files, check, build, and refresh the preview.
 
 ```bash
 adx build index.json --out dist --tokens tokens/design-tokens.json
+adx build styled.json --site site.json   # merge shared external assets (Tailwind, etc.)
 adx check hello-card --data sample-data.json
 adx serve dist --port 3000 --host localhost
 adx tokens --tokens tokens/design-tokens.json
@@ -126,7 +127,24 @@ adx tokens --tokens tokens/design-tokens.json
 
 `sample-data.json` is your JSON props file, not a generated starter file.
 Both `build` and `check` accept `--tokens` and `--data`; `--data` supplies props
-for standalone components. Pages supply data through their component entries.
+for standalone components. Pages supply data through their component entries, and
+accept `--site <site.json>` to merge shared external assets.
+
+### Using Tailwind or any CSS library
+
+A page brings in external CSS/JS through an `assets` block — on the page manifest
+or a shared `site.json` applied with `--site`:
+
+```json
+{ "assets": { "css": ["/tailwind.css"], "head": ["<meta name=\"theme-color\" content=\"#1d4ed8\" />"] } }
+```
+
+The recommended Tailwind path is **build-time static CSS**: run the Tailwind CLI
+to generate `tailwind.css`, then reference it via `assets.css`. ADX links it right
+after its own token stylesheet (so utilities can override via cascade), keeping
+the page fully styled and crawlable with no JavaScript. Do not inject a runtime
+CSS CDN `<script>` into a component — it breaks the static/SEO contract. See the
+[AI Frontend Guide](docs/agent-reference.md#external-design-library-assets).
 
 ## Documentation
 
@@ -148,6 +166,7 @@ choosing ADX for your frontend.
 | Project scaffolding and static preview | Hot reload and a compiling dev server |
 | Typed props, defaults, composition, and slots | Framework pattern library and lifecycle execution |
 | Per-instance text and attribute updates | Runtime structural and computed reactivity |
+| External CSS/JS assets (Tailwind etc.) via page `assets` + `--site` | Asset replace-semantics and site-config auto-discovery |
 
 `:if`/`:for` and computed values are build-time only. See the
 [reactivity contract](docs/agent-reference.md#reactivity-contract) before designing

@@ -372,6 +372,34 @@ on each instance root and emits instance-scoped three-part hook ids
 `<scope>-i<ordinal>-<n>` (§8a). The CSS is emitted once per component (shared
 `data-adx-c`); the body is emitted N times.
 
+## 12. Page/site `assets` schema (JSON, not `.adx`)
+
+Page manifests and the `--site` site config are JSON, not `.adx` structure, but
+their `assets` schema is specified here so the grammar/reference pair stays in
+sync (per the documentation rule). Both accept the same optional `assets` object;
+the site config additionally accepts an optional site-wide `lang` string.
+
+```
+assets      := { css?: string[], js?: (string | JsScript)[], head?: string[] }   // unknown keys ignored
+JsScript    := { src: string, type?: string, defer?: boolean, async?: boolean }   // src required, non-empty
+```
+
+- `css[]` — each a non-empty string (`length > 0`, **no trim**; `"  "` is legal).
+- `js[]` — a non-empty string (shorthand, normalized to `{ src }`) or a plain
+  object. Entry classification uses the three-way guard
+  (`typeof === "string"` → shorthand; `typeof === "object" && !== null &&
+  !Array.isArray` → object; else error), so `null`/array/number/boolean entries
+  take the "must be a string or an object with \"src\"" error — never a
+  `TypeError`.
+- `head[]` — each a string; empty strings are legal (no non-empty rule). Emitted
+  verbatim/unescaped (author-trusted).
+
+Exact error strings (`[ADX] <file> - <msg>`): see the Pages section of
+[agent-reference.md](./agent-reference.md#external-design-library-assets).
+Merge (`--site`) is concat-then-dedupe: site base + page appended; `css`/`js`
+deduped first-wins (js by `src`), `head` not deduped. Token `style.css` is
+emitted before external `assets.css`; the glue script before author `assets.js`.
+
 ---
 
 *Grammar is the parser's contract. Keep it in sync with `agent-reference.md`.*
