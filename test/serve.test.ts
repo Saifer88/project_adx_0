@@ -73,18 +73,37 @@ describe("serve static file server", () => {
   let port: number;
   let server: Server;
 
+  // Bind to port 0 so the OS assigns a free ephemeral port; a fixed/random port
+  // could already be in use and the server's error handler would exit the whole
+  // Vitest worker. Read the real port from server.address() after `listening`.
   function start(): Promise<void> {
-    server = serve(
-      parseArgs(["serve", dir, "--port", String(port), "--host", "127.0.0.1"]),
+    // Pass port 0 directly (parseArgs's --port validation rejects 0 as a user
+    // value, but 0 is the valid "pick a free port" sentinel for the server).
+    server = serve({
+      command: "serve",
+      dir,
+      out: "dist",
+      tokens: undefined,
+      data: undefined,
+      port: 0,
+      host: "127.0.0.1",
+    });
+    return new Promise((done) =>
+      server.once("listening", () => {
+        const address = server.address();
+        if (address && typeof address === "object") {
+          port = address.port;
+        }
+        done();
+      }),
     );
-    return new Promise((done) => server.once("listening", () => done()));
   }
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "adx-serve-"));
     writeFileSync(join(dir, "index.html"), "<h1>hello adx</h1>");
     writeFileSync(join(dir, "glue.js"), "export const x = 1;");
-    port = 30000 + Math.floor(Math.random() * 20000);
+    port = 0;
   });
 
   afterEach(async () => {

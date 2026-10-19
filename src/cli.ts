@@ -27,6 +27,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -391,12 +392,25 @@ function main(argv: string[]): void {
   process.exit(run(args));
 }
 
-// Run the CLI only when invoked as the entry point (`node dist/cli.js …`), so
-// tests can import `parseArgs`/`serve` without starting the process.
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+// Run the CLI only when invoked as the entry point (`node dist/cli.js …` or the
+// installed `adx` bin), so tests can import `parseArgs`/`serve` without starting
+// the process. npm installs the bin as a symlink, so compare *real* paths:
+// `fileURLToPath(import.meta.url)` is already realpathed by Node's loader, while
+// `process.argv[1]` keeps the invoked (symlink) path, so canonicalize it too.
+// A lexical `resolve` would never match the symlinked bin and silently no-op.
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) {
+    return false;
+  }
+  try {
+    return realpathSync(entry) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   main(process.argv.slice(2));
 }
 
