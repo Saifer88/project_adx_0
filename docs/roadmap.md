@@ -127,8 +127,11 @@ stays `adx`). Flow: push to `main` → a GitHub Action
 (`.github/workflows/publish.yml`) runs `npm ci && npm run build && npm test`,
 then publishes to npm only when `package.json`'s version is not already there →
 users `npm install -g project-adx-0` and run `adx build <their-component>` to
-compile their own code. Automated publish-on-main is now configured (version
-still `0.1.0-alpha`, so the first tagged release is pending a version bump).
+compile their own code. Automated publish-on-main is now configured. There is no
+tag trigger: the current version (`0.1.0-alpha`) publishes on the next eligible
+push to `main` if npm does not already have it, and each subsequent publish
+requires bumping the version in `package.json` first (the guard skips a version
+that is already on npm).
 
 A static `adx serve [dir]` ships now for local preview — it serves already-compiled
 output over HTTP and does not compile or hot-reload. The full dev server with hot

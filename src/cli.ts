@@ -15,7 +15,11 @@
  *       Static file server for already-compiled output; it does NOT compile.
  *       `dir` defaults to `dist`. Serves HTML/CSS/JS ES modules over HTTP so you
  *       can preview a build locally. Long-running: it keeps listening until the
- *       process is interrupted (no `process.exit`).
+ *       process is interrupted (no `process.exit`). This is a loopback preview,
+ *       not a hardened server — it binds `localhost` by default; passing a
+ *       non-loopback `--host` (e.g. `0.0.0.0`) exposes the output on the network
+ *       with no access control, and it does not guard against symlinks placed
+ *       inside the served directory that point outside it.
  */
 
 import {
@@ -27,7 +31,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, extname, join, resolve, sep } from "node:path";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { fileURLToPath } from "node:url";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
 import type { ComponentAsset } from "./codegen/glue.js";
@@ -55,6 +65,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     port: undefined,
     host: undefined,
   };
+  // `--port`/`--host` are serve-only flags. Only consume them (and their value
+  // token) when the command is `serve`; for build/check they stay unknown flags
+  // and are skipped, so those commands' arg handling is byte-for-byte as before.
+  const isServe = command === "serve";
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === "--out") {
@@ -63,14 +77,14 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.tokens = rest[++i];
     } else if (arg === "--data") {
       parsed.data = rest[++i];
-    } else if (arg === "--port") {
-      // Only accept a finite positive integer; leave undefined otherwise so
-      // serve() can report `[ADX] --port <v> - invalid port` and exit 1.
+    } else if (isServe && arg === "--port") {
+      // Only accept a finite integer in the valid TCP range; leave undefined
+      // otherwise so main() can report `[ADX] --port <v> - invalid port`.
       const value = Number(rest[++i]);
-      if (Number.isInteger(value) && value > 0) {
+      if (Number.isInteger(value) && value >= 1 && value <= 65535) {
         parsed.port = value;
       }
-    } else if (arg === "--host") {
+    } else if (isServe && arg === "--host") {
       parsed.host = rest[++i];
     } else if (!arg.startsWith("--") && parsed.dir === undefined) {
       parsed.dir = arg;
@@ -126,9 +140,10 @@ const CONTENT_TYPES: Record<string, string> = {
  * Static file server for already-compiled output (`adx serve [dir]`). It never
  * compiles — it just streams the files under `dir` (default `dist`) over HTTP.
  * Long-running: the listening server keeps the event loop alive, so this
- * returns without `process.exit`.
+ * returns without `process.exit`. Returns the `Server` so callers/tests can
+ * close it; the CLI entry point ignores the return value.
  */
-function serve(args: ParsedArgs): void {
+function serve(args: ParsedArgs): Server {
   const root = resolve(args.dir ?? "dist");
   const port = args.port ?? 3000;
   const host = args.host ?? "localhost";
@@ -142,14 +157,26 @@ function serve(args: ParsedArgs): void {
     }
 
     // Decode the request path; malformed percent-encoding is a 400.
+    const rawPath = (req.url ?? "/").split(/[?#]/, 1)[0];
+    let decodedRaw: string;
     let pathname: string;
     try {
+      decodedRaw = decodeURIComponent(rawPath);
       pathname = decodeURIComponent(
         new URL(req.url ?? "/", "http://localhost").pathname,
       );
     } catch {
       res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Bad Request\n");
+      return;
+    }
+
+    // SECURITY: reject a literal `..` segment in the decoded raw path up front so
+    // the 403 contract holds even for vectors the WHATWG URL parser would
+    // otherwise normalize to an in-root path (e.g. `/../../etc/passwd`).
+    if (/(^|\/)\.\.(\/|$)/.test(decodedRaw)) {
+      res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Forbidden\n");
       return;
     }
 
@@ -206,9 +233,27 @@ function serve(args: ParsedArgs): void {
     stream.pipe(res);
   });
 
-  server.listen(port, host, () => {
-    process.stdout.write(`ADX serving ${root} at http://localhost:${port}/\n`);
+  // Translate listen failures (EADDRINUSE, EACCES, bad --host, …) into a
+  // concise `[ADX] …` message + exit 1 instead of an uncaught stack trace.
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    process.stderr.write(`[ADX] serve - ${err.code ?? err.message}\n`);
+    process.exit(1);
   });
+
+  server.listen(port, host, () => {
+    // Announce a reachable address: substitute localhost for wildcard binds and
+    // bracket IPv6 literals so the printed URL is clickable/correct.
+    const shown =
+      host === "0.0.0.0" || host === "::" ? "localhost" : displayHost(host);
+    process.stdout.write(`ADX serving ${root} at http://${shown}:${port}/\n`);
+  });
+
+  return server;
+}
+
+/** Format a host for a URL: wrap IPv6 literals (containing `:`) in brackets. */
+function displayHost(host: string): string {
+  return host.includes(":") ? `[${host}]` : host;
 }
 
 /** Build/check a single component directory (M1 path, unchanged behavior). */
@@ -346,4 +391,14 @@ function main(argv: string[]): void {
   process.exit(run(args));
 }
 
-main(process.argv.slice(2));
+// Run the CLI only when invoked as the entry point (`node dist/cli.js …`), so
+// tests can import `parseArgs`/`serve` without starting the process.
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  main(process.argv.slice(2));
+}
+
+export { parseArgs, serve, run, usage };
+export type { ParsedArgs };

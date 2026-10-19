@@ -31,6 +31,29 @@ The package publishes to npm automatically from `main` via GitHub Actions
 (see [`.github/workflows/publish.yml`](.github/workflows/publish.yml)); each push
 to `main` publishes only when `package.json`'s version is not already on npm.
 
+### Publishing setup (maintainers)
+
+The publish workflow authenticates to npm with a repository secret named
+`NPM_TOKEN`. Create it once:
+
+1. **Create the npm token.** Sign in at [npmjs.com](https://www.npmjs.com/),
+   open **Access Tokens** from your avatar menu, and choose **Generate New
+   Token**. Pick a token that can publish:
+   - **Granular Access Token** (recommended): scope it to the `project-adx-0`
+     package with **Read and write** permission, and set an expiry.
+   - Or a classic **Automation** token, which bypasses 2FA so CI can publish
+     non-interactively.
+2. **Copy the token value.** npm shows it only once. Treat it like a password —
+   do not paste it into code, commits, or chat.
+3. **Add it as a GitHub Actions secret.** In the GitHub repo, go to
+   **Settings → Secrets and variables → Actions → New repository secret**, name
+   it exactly `NPM_TOKEN`, paste the token value, and save.
+
+After that, pushing to `main` runs the workflow and publishes when the version
+is new. To release a new version, bump `version` in `package.json` and push to
+`main`; re-pushing an already-published version is a clean skip. Rotate the
+token by generating a new one on npm and updating the `NPM_TOKEN` secret.
+
 ## CLI
 
 ```bash
