@@ -1,169 +1,184 @@
-# ADX Framework
+<h1 align="center">ADX Framework</h1>
 
-*"Created by AI. For AI. Humans will understand."*
+<p align="center"><strong>Agent-Driven Experience</strong><br>Build frontends with AI. Ship HTML, CSS, and JavaScript.</p>
 
-**Agent-Driven Experience Framework**
+<p align="center">
+	<a href="https://www.npmjs.com/package/project-adx-0"><img src="https://img.shields.io/badge/status-alpha-007F73?style=flat-square" alt="Status: alpha"></a>
+	<a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D18-417E38?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 18 or newer"></a>
+	<a href="docs/agent-reference.md"><img src="https://img.shields.io/badge/AI-frontend_guide-1769AA?style=flat-square" alt="AI frontend authoring guide"></a>
+</p>
 
-ADX is a frontend framework built specifically for AI coding agents to minimize token consumption while maintaining production-quality interfaces.
+<p align="center">
+	<a href="#quick-start">Quick Start</a> &middot;
+	<a href="#build-with-an-ai-agent">Build With AI</a> &middot;
+	<a href="#your-project">Project Structure</a> &middot;
+	<a href="#documentation">Documentation</a>
+</p>
 
-## Core Philosophy
-**Token-First Design**: Every decision prioritizes AI agent efficiency first, human ergonomics second. The goal is a 60-80% token reduction across full agent workflows.
+ADX is an alpha frontend framework designed for AI-assisted authoring. Write compact
+components and page manifests; ADX compiles them to static HTML, scoped CSS, and
+JavaScript for supported interactions.
 
-**Measured today:** 13.3-13.8% fewer source-reading tokens on one UserCard versus
-a minimal React equivalent. Full-workflow savings are not measured yet; 60-80%
-is a target, not a demonstrated result. See [benchmark/README.md](benchmark/README.md).
+| Explicit Components | Static HTML First | Focused Edits |
+| :--- | :--- | :--- |
+| Separate structure, behavior, style, and contract. | Page content is rendered at build time. | Change the relevant file without rewriting the component. |
 
-## Install
+> **Building a frontend with an AI agent?** Start with the
+> [AI Frontend Guide](docs/agent-reference.md)
+> ([online copy](https://github.com/Saifer88/project_adx_0/blob/main/docs/agent-reference.md)).
+> Use ADX as a dependency in your app. You do not need to clone or modify the
+> ADX CLI/compiler repository.
+
+## Quick Start
 
 The npm package is **`project-adx-0`**; the CLI command it installs is **`adx`**.
-
-```bash
-# Global install -> an `adx` command on your PATH
-npm install -g project-adx-0
-adx build fixtures/user-card --data fixtures/user-card/data.json --out dist
-
-# No install (one-off). The bin name (`adx`) differs from the package name,
-# so pass the package with -p and the binary name after it:
-npx -p project-adx-0 adx build fixtures/user-card --data fixtures/user-card/data.json --out dist
-```
-
-The package publishes to npm automatically from `main` via GitHub Actions
-(see [`.github/workflows/publish.yml`](.github/workflows/publish.yml)); each push
-to `main` publishes only when `package.json`'s version is not already on npm.
-
-### Publishing setup (maintainers)
-
-The publish workflow authenticates to npm with a repository secret named
-`NPM_TOKEN`. Create it once:
-
-1. **Create the npm token.** Sign in at [npmjs.com](https://www.npmjs.com/),
-   open **Access Tokens** from your avatar menu, and choose **Generate New
-   Token → Granular Access Token** (as of late 2025 npm only issues granular
-   tokens; classic/Automation tokens have been removed). Configure it so CI can
-   publish unattended:
-   - **First publish (bootstrap).** `project-adx-0` does not exist on npm yet, so
-     you cannot scope a token to it — the package is not selectable until it has
-     been published once. Pick one of:
-     - Create a token with **Read and write** on **all packages** (or all under
-       your account), let the first push to `main` publish, then immediately
-       replace it with a package-scoped token and update the `NPM_TOKEN` secret; **or**
-     - Publish once manually from your machine (`npm run build` then `npm publish`),
-       which creates the package, then use a package-scoped token for CI from then on.
-   - **After the package exists**, scope the token to the `project-adx-0` package
-     with **Read and write** permission, and set an expiry.
-   - **Enable "Bypass two-factor authentication (2FA)".** This box is unchecked
-     by default. If your account enforces 2FA on publish and the token does not
-     bypass it, `npm publish` in Actions fails with an OTP prompt the workflow
-     cannot answer. See npm's
-     [CI/CD token guide](https://docs.npmjs.com/using-private-packages-in-a-ci-cd-workflow).
-2. **Copy the token value.** npm shows it only once. Treat it like a password —
-   do not paste it into code, commits, or chat.
-3. **Add it as a GitHub Actions secret.** In the GitHub repo, go to
-   **Settings → Secrets and variables → Actions → New repository secret**, name
-   it exactly `NPM_TOKEN`, paste the token value, and save.
-
-After that, pushing to `main` runs the workflow and publishes when the version
-is new. To release a new version, bump `version` in `package.json` and push to
-`main`; re-pushing an already-published version is a clean skip. Rotate the
-token by generating a new one on npm and updating the `NPM_TOKEN` secret.
-
-## CLI
-
-```bash
-adx init [name]
-# Scaffold a minimal starter project (one component, a page, tokens, a README)
-# into ./<name>, or the current directory when the name is omitted or `.`.
-# Refuses to overwrite an existing scaffold file.
-
-adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]
-# Compile a component or a page to static HTML + scoped CSS + hydration glue.
-
-adx serve [dir] [--port 3000] [--host localhost]
-# Preview already-compiled output locally. Static file server only; it does
-# NOT compile. `dir` defaults to `dist`. Prints the URL to open.
-
-adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]
-# Validate in-memory (prints OK and exits 0, or an [ADX] error and exits 1).
-
-adx tokens [--tokens <path>]
-# List every design token (name = value), grouped by category. Defaults to the
-# bundled token set; pass --tokens to point at your own file.
-
-adx help
-# Print the full command listing with flags and one-line descriptions.
-```
-
-### End-to-end example
+Requires Node.js 18+ and npm; Node.js 24 LTS is recommended for new projects.
+No repository clone or fixtures are needed.
 
 ```bash
 npm install -g project-adx-0
-
-# Scaffold a fresh project and move into it
 adx init my-app
 cd my-app
-
-# Build the starter component and page into dist/
-adx build hello-card
+adx check index.json
 adx build index.json
-
-# Serve the result and open the printed URL (http://localhost:3000/)
 adx serve dist
 ```
 
-## Quick Start (from source)
+Open the printed URL (by default `http://localhost:3000/`). Edit the files in
+`hello-card/` and the page metadata/data in `index.json`, then run
+`adx check index.json` and `adx build index.json` again and refresh the browser. `serve`
+only serves compiled files; it does not rebuild or hot reload. Stop it with Ctrl+C.
 
-### Build & Validate
+### Without a Global Install
+
+Use this alternative in a fresh directory. Because the package and binary names
+differ, pass the package with `--package` on every invocation:
+
 ```bash
-npm ci
-# Build a component
-npm run build
-node dist/cli.js build fixtures/user-card --data fixtures/user-card/data.json --out dist/site
-
-# Build a page
-node dist/cli.js build fixtures/site/index.json --out dist/site
-
-# Preview a build locally (static server; does not compile)
-node dist/cli.js serve dist/site
-
-# Validate a component/page
-node dist/cli.js check fixtures/user-card --data fixtures/user-card/data.json
-node dist/cli.js check fixtures/site/index.json
+npx --yes --package project-adx-0 adx init my-app
+cd my-app
+npx --yes --package project-adx-0 adx check index.json
+npx --yes --package project-adx-0 adx build index.json
+npx --yes --package project-adx-0 adx serve dist
 ```
-
-For development, use Node 22.13+ (22.x) or Node 24+. Run `npm test`,
-`npm run lint`, and `npm run benchmark`. Browser regression tests use
-`npx playwright install chromium` followed by `npm run test:browser`.
 
 **Trust boundary:** both `build` and `check` execute component JavaScript.
 Only compile trusted components. Node `vm` and its timeout are not a security
 sandbox; untrusted builds need an externally isolated environment with restricted
 filesystem, network, credentials, and resources.
 
-### Component Structure
-Each component consists of 4 files:
-- `structure.adx`: DOM structure (compact syntax)
-- `behavior.adx.js`: Deterministic setup and synchronous state-mutating handlers
-- `style.adx.css`: Styling using semantic tokens
-- `manifest.json`: Metadata & API definition
+## Build With an AI Agent
 
-## Essential Guides
+Give your agent your frontend requirements and this starting instruction:
 
-| Target | Starting Point | Description |
-| :--- | :--- | :--- |
-| **AI Agents** | [`docs/agent-reference.md`](docs/agent-reference.md) | Canonical token-efficient reference |
-| **Humans** | [`docs/human-guide.md`](docs/human-guide.md) | Framework overview and usage |
-| **Technical** | [`docs/architecture.md`](docs/architecture.md) | Compiler internals and SEO contract |
-| **Grammar** | [`docs/adx-grammar.md`](docs/adx-grammar.md) | Exact `.adx` syntax rules |
+```text
+Build my frontend using ADX (npm package: project-adx-0).
+Read https://github.com/Saifer88/project_adx_0/blob/main/docs/agent-reference.md first.
+Work in my app project, not the ADX framework repository. Use the installed CLI.
+Create or edit components, page manifests, and design tokens. Do not modify
+the ADX compiler, CLI, installed package, or generated dist output.
+Use only implemented APIs. Run adx check, build the pages, and preview them
+with adx serve. Verify layout and interactions in a browser.
+```
 
-## Status
-- **Version**: `0.1.0-alpha`
-- **Current Milestone**: Real data binding, multi-component pages, and reactivity contract.
-- **Next**: Pattern library and a dev server with hot reload.
+The canonical guide also ships in the npm package at `docs/agent-reference.md`.
+Use that copy for instructions matching the installed release; the online copy
+tracks `main`. See the guide for local and global installation paths.
 
-Available: project scaffolding via `adx init`, typed props/defaults, static composition and slots, scoped CSS,
-per-instance text/attribute updates, hydration assets for both pages and
-standalone composed components, and a static `adx serve` for local preview.
-`:if`/`:for` and computed values are build-time only. Lifecycle execution,
-`@adx/patterns`, and hot reload are not implemented.
+## Your Project
 
-See [`docs/roadmap.md`](docs/roadmap.md) for the full plan.
+```text
+my-app/
+	hello-card/
+		manifest.json          Component props, events, and slots
+		structure.adx          Markup and bindings
+		behavior.adx.js        Setup and synchronous event handlers
+		style.adx.css          Styles using design tokens
+	index.json               Page metadata and component data
+	tokens/design-tokens.json
+	dist/                    Generated output; do not edit
+```
+
+`dist/` appears after building. Add components and page manifests as your frontend
+grows. Edit source files, check, build, and refresh the preview.
+
+## CLI
+
+| Command | Purpose |
+| :--- | :--- |
+| `adx init [name]` | Create a starter in a named directory or the current directory; never overwrites scaffold files. |
+| `adx check <componentDir\|page.json>` | Validate in memory; exits 0 on success or 1 with an `[ADX]` error. |
+| `adx build <componentDir\|page.json>` | Generate static HTML, scoped CSS, and hydration JavaScript. |
+| `adx serve [dir]` | Preview compiled output; defaults to `dist`. No compilation or hot reload. |
+| `adx tokens` | List design tokens grouped by category. |
+| `adx help` | Show all commands and flags. |
+
+```bash
+adx build index.json --out dist --tokens tokens/design-tokens.json
+adx check hello-card --data sample-data.json
+adx serve dist --port 3000 --host localhost
+adx tokens --tokens tokens/design-tokens.json
+```
+
+`sample-data.json` is your JSON props file, not a generated starter file.
+Both `build` and `check` accept `--tokens` and `--data`; `--data` supplies props
+for standalone components. Pages supply data through their component entries.
+
+## Documentation
+
+| Goal | Guide |
+| :--- | :--- |
+| **Build a frontend with AI** | [AI Frontend Guide](docs/agent-reference.md) |
+| Learn ADX as a developer | [Human Guide](docs/human-guide.md) |
+| Look up exact syntax | [Grammar](docs/adx-grammar.md) |
+| Understand compiler internals | [Architecture](docs/architecture.md), for contributors |
+| Publish the framework | [Publishing](docs/publishing.md), for maintainers |
+
+## Status and Limits
+
+**Version: `0.1.0-alpha`.** APIs are early-stage; assess the current limits before
+choosing ADX for your frontend.
+
+| Available | Not Yet Available |
+| :--- | :--- |
+| Project scaffolding and static preview | Hot reload and a compiling dev server |
+| Typed props, defaults, composition, and slots | Framework pattern library and lifecycle execution |
+| Per-instance text and attribute updates | Runtime structural and computed reactivity |
+
+`:if`/`:for` and computed values are build-time only. See the
+[reactivity contract](docs/agent-reference.md#reactivity-contract) before designing
+dynamic interactions, and the [roadmap](docs/roadmap.md) for planned features.
+
+## Token Efficiency
+
+Token-first authoring is the design goal. **Measured today: 13.3-13.8% fewer
+source-reading tokens** on one UserCard versus a minimal React equivalent.
+Full-workflow savings are not measured; 60-80% is a target, not a demonstrated
+result. See the [benchmark methodology](https://github.com/Saifer88/project_adx_0/blob/main/benchmark/README.md).
+
+## Contributing to ADX
+
+This section is for changing the framework itself, **not building an app with it**.
+Frontend authors can stop at the guides above.
+
+<details>
+<summary>Contributor setup and validation</summary>
+
+Clone this repository and run these commands from its root. Use Node 22.13+
+(22.x) or Node 24+ for framework development.
+
+```bash
+npm ci
+npm run build
+node dist/cli.js check fixtures/user-card --data fixtures/user-card/data.json
+node dist/cli.js build fixtures/site/index.json --out dist/site
+node dist/cli.js serve dist/site
+```
+
+Validation: `npm test`, `npm run lint`, and `npm run benchmark`. Browser tests:
+`npx playwright install chromium`, then `npm run test:browser`.
+
+Compiler details are in [Architecture](docs/architecture.md); release instructions
+are in [Publishing](docs/publishing.md).
+
+</details>

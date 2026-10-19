@@ -1,18 +1,67 @@
-# ADX Agent Reference
+# ADX AI Frontend Guide
 
-**Optimized for LLM Context Windows**
+**Use ADX to build the user's frontend.** This is the canonical, token-efficient
+guide for application authors, not instructions for developing the ADX framework.
 
-This document is the single source of truth for AI agents working with ADX. It is structured for maximum token efficiency and fast scanning.
+## Work in the App, Not the Framework
+
+- Use the installed `adx` CLI in the user's app directory. Do not clone the ADX
+  repository or run its contributor setup to create a frontend.
+- Create and edit app components (`manifest.json`, `structure.adx`,
+  `behavior.adx.js`, `style.adx.css`), page manifests, assets, and design tokens.
+- Treat the CLI/compiler as a dependency. Do not modify ADX source, its installed
+  package, or generated `dist/` files unless the user explicitly requests framework
+  development. Rebuild generated output from app source instead.
+- Use implemented APIs only. If a requested interaction exceeds ADX's limits,
+  explain the limitation and agree on an alternative; do not silently add a
+  compiler feature or switch frameworks.
+
+## Install and First Page
+
+Requires Node.js 18+ and npm; Node.js 24 LTS is recommended for new projects.
+The npm package is `project-adx-0`; its executable is `adx`.
+
+```bash
+npm install -g project-adx-0
+adx init my-app
+cd my-app
+adx check index.json
+adx build index.json
+adx serve dist
+```
+
+Open the printed URL (default `http://localhost:3000/`). No repository clone is
+needed. Without a global install, replace **every** `adx` invocation with
+`npx --yes --package project-adx-0 adx`; keep the `cd my-app` step.
+For an existing app, inspect its files first; do not run `init` over existing work.
+
+`init` creates `hello-card/`, `index.json`, tokens, and a README. Read the
+component's `manifest.json` first, then edit the relevant structure, behavior,
+or style file. Edit page metadata and component data in `index.json`. After
+each change, run `adx check index.json`, then `adx build index.json`, and
+refresh the browser. `serve` is static only, with no rebuild or hot reload;
+stop it with Ctrl+C. `check` validates compilation, not browser interactions.
+Verify the frontend at desktop and mobile sizes and exercise its interactions.
+
+Both `check` and `build` execute component JavaScript. Compile only trusted
+components; the Node VM is not a security sandbox.
+
+This reference ships inside the npm package at `docs/agent-reference.md`.
+For a local install it is at `node_modules/project-adx-0/docs/agent-reference.md`;
+for a global install, find the package under the directory printed by `npm root -g`.
+The [online reference](https://github.com/Saifer88/project_adx_0/blob/main/docs/agent-reference.md)
+tracks `main`; the packaged copy matches your installed release.
 
 ## Current Capabilities
 
-Implemented: `build`/`check`/`serve`/`init`, typed props/defaults, static
+Implemented: `build`/`check`/`serve`/`init`/`tokens`/`help`, typed props/defaults, static
 pages/composition/slots, scoped CSS, per-instance text/attribute updates, and
 standalone child assets. `serve` is a static preview server only (no compile);
 `init` scaffolds a minimal, buildable starter project.
 Not implemented: `@adx/patterns`, lifecycle execution, a dev server
 with hot reload, automatic accessibility audits, or structural/computed reactivity.
-The planned pattern examples below are proposals, not runnable APIs.
+Future API sketches live separately in [Planned Patterns](./planned-patterns.md);
+do not use them in current components.
 Both `build` and `check` execute trusted component code; `node:vm` is not a
 security boundary. See the build-time execution section before compiling dependencies.
 
@@ -34,39 +83,35 @@ COMPONENT MODIFICATION
   2. Identify concern: structure/behavior/style
   3. Edit only relevant .adx file
   4. Update manifest.json if API changed
-
-PLANNED PATTERN API (NOT AVAILABLE)
-  import { PatternName } from '@adx/patterns'
-  Use as base, extend as needed
-  Patterns: grid, stack, form, table, modal, toast, nav, tabs
+  5. Run adx check <page.json>, then adx build <page.json>
 ```
 
-## File Templates
+## Runnable Component Example
+
+After the quick start, create a `counter/` directory beside `index.json` and put
+these four files in it. All props have defaults, so no data file is needed.
 
 ### manifest.json
 ```json
 {
-  "name": "ComponentName",
+  "name": "Counter",
   "version": "1.0.0",
   "props": {
-    "propName": {
-      "type": "string|number|boolean|array|object",
-      "required": true|false,
-      "default": "value"
-    }
+    "title": { "type": "string", "default": "Counter" },
+    "initialCount": { "type": "number", "default": 0 }
   },
-  "emits": ["eventName"],
-  "slots": ["slotName"],
-  "deps": ["./relative/path"]
+  "emits": ["changed"],
+  "slots": []
 }
 ```
 
 ### structure.adx
 ```adx
-<element .className>
-  <element :prop="value">{{interpolated}}</element>
-  <slot slotName />
-</element>
+<section .counter>
+  <h1>{{title}}</h1>
+  <p aria-live="polite">Clicks: {{count}}</p>
+  <button type="button" @click="onIncrement">Increment</button>
+</section>
 ```
 
 **Syntax**:
@@ -78,13 +123,12 @@ PLANNED PATTERN API (NOT AVAILABLE)
 ### behavior.adx.js
 ```js
 export function setup(props) {
-  // Initialize state
-  return { key: value }
+  return { title: props.title, count: props.initialCount }
 }
 
-export function onEventName(state, event) {
-  // Handle event
-  emit('customEvent', data)
+export function onIncrement(state) {
+  state.count += 1
+  emit('changed', { count: state.count })
 }
 ```
 
@@ -98,29 +142,41 @@ export function onEventName(state, event) {
 ```css
 @use tokens;
 
-.className {
-  /* Layout */
-  display: flex|grid|block;
-  pad: tokens.space-N;
-  gap: tokens.space-N;
-  
-  /* Visual */
-  bg: tokens.color-name;
-  color: tokens.color-name;
-  radius: tokens.radius-sm|md|lg|full;
-  shadow: tokens.shadow-sm|md|lg;
-  
-  /* Typography */
-  font: tokens.font-family-name;
-  size: tokens.text-sm|base|lg|xl;
-  weight: tokens.weight-normal|medium|bold;
-  
-  /* Responsive */
-  @media (min-width: tokens.breakpoint-md) {
-    /* overrides */
-  }
+.counter {
+  display: grid;
+  pad: tokens.space-6;
+  gap: tokens.space-2;
+  bg: tokens.surface-0;
+  color: tokens.text-1;
+  font-family: tokens.font-sans;
+}
+
+button {
+  min-height: tokens.space-12;
+  pad: tokens.space-2 tokens.space-4;
+  bg: tokens.primary;
+  color: tokens.surface-0;
+  radius: tokens.radius-sm;
+  size: tokens.text-base;
+  weight: tokens.weight-medium;
+  border: none;
 }
 ```
+
+From the project directory, run:
+
+```bash
+adx check counter
+adx build counter
+adx serve dist
+```
+
+Open `/counter/` on the printed server URL. If `serve` is already running,
+reuse it. Clicking Increment updates the count for this instance. To place the
+counter on your home page instead, replace the starter entry in `index.json`'s
+`components` array with
+`{ "use": "./counter", "data": { "title": "Counter", "initialCount": 0 } }`,
+then check and build `index.json` again.
 
 **Abbreviated Properties**:
 - `pad` = padding
@@ -196,153 +252,6 @@ tokens.breakpoint-lg  /* 1024px */
 tokens.breakpoint-xl  /* 1280px */
 ```
 
-## Planned Patterns (Not Implemented)
-
-### Layout Patterns
-
-**Stack** (vertical spacing):
-```adx
-<div .stack :gap="space-4">
-  <div>Item 1</div>
-  <div>Item 2</div>
-</div>
-```
-
-**Grid** (responsive columns):
-```adx
-<div .grid :cols="3" :gap="space-4">
-  <div>Card 1</div>
-  <div>Card 2</div>
-  <div>Card 3</div>
-</div>
-```
-
-**Sidebar** (main + sidebar layout):
-```adx
-<div .sidebar :sideWidth="300px">
-  <aside>Sidebar</aside>
-  <main>Content</main>
-</div>
-```
-
-**Cluster** (wrapped horizontal):
-```adx
-<div .cluster :gap="space-2">
-  <span>Tag 1</span>
-  <span>Tag 2</span>
-  <span>Tag 3</span>
-</div>
-```
-
-### Form Patterns
-
-**Form**:
-```adx
-<form .form @submit="onSubmit">
-  <field :label="Name" :error="errors.name">
-    <input :value="name" @input="onNameChange">
-  </field>
-  <button type="submit">Submit</button>
-</form>
-```
-
-**Field** (label + input + error):
-```adx
-<field :label="Email" :required="true" :error="emailError">
-  <input type="email" :value="email">
-</field>
-```
-
-### Data Patterns
-
-**Table**:
-```adx
-<table .table :data="rows" :columns="cols">
-  <template #cell="{ col, row }">
-    {{row[col.key]}}
-  </template>
-</table>
-```
-
-**List**:
-```adx
-<list :items="users" :keyField="id">
-  <template #item="{ item }">
-    <div>{{item.name}}</div>
-  </template>
-</list>
-```
-
-### Feedback Patterns
-
-**Toast** (notification):
-```js
-// In behavior.adx.js
-import { toast } from '@adx/patterns'
-
-toast.success('Saved!', { duration: 3000 })
-toast.error('Failed', { duration: 5000 })
-toast.info('Info message')
-```
-
-**Modal**:
-```adx
-<modal :open="isOpen" @close="onClose">
-  <h2>Title</h2>
-  <p>Content</p>
-  <button @click="onClose">Close</button>
-</modal>
-```
-
-**Alert**:
-```adx
-<alert :type="success|warning|error|info">
-  Message text
-</alert>
-```
-
-**Loader**:
-```adx
-<loader :active="isLoading" :message="Loading...">
-  <!-- Content shown when not loading -->
-</loader>
-```
-
-### Navigation Patterns
-
-**Nav**:
-```adx
-<nav .nav :items="navItems" :active="currentPath">
-  <template #item="{ item }">
-    <a :href="item.path">{{item.label}}</a>
-  </template>
-</nav>
-```
-
-**Tabs**:
-```adx
-<tabs :items="tabs" :active="activeTab" @change="onTabChange">
-  <template #panel="{ item }">
-    <div>{{item.content}}</div>
-  </template>
-</tabs>
-```
-
-**Breadcrumb**:
-```adx
-<breadcrumb :items="path">
-  <template #item="{ item, isLast }">
-    <a v-if="!isLast" :href="item.path">{{item.label}}</a>
-    <span v-else>{{item.label}}</span>
-  </template>
-</breadcrumb>
-```
-
-**Pagination**:
-```adx
-<pagination :total="100" :perPage="10" :current="page" @change="onPageChange" />
-```
-
 ## Common Modifications
 
 ### Add New Prop
@@ -351,9 +260,10 @@ toast.info('Info message')
 3. Handle in `behavior.adx.js` `setup()` if needed
 
 ### Add Event Handler
-1. In `structure.adx`: `@eventName="handlerName"`
-2. In `behavior.adx.js`: `export function onHandlerName(state, event) { ... }`
-3. In `manifest.json`: add `"handlerName"` to `emits` array if custom event
+1. In `structure.adx`: `@click="onAction"`
+2. In `behavior.adx.js`, export `onAction(state, event)` with exactly that name
+3. For a custom event, call `emit('changed', data)` and add `"changed"` to the
+  manifest's `emits` array; DOM events and handler names do not belong there
 
 ### Add Conditional Rendering
 ```adx
@@ -370,7 +280,7 @@ toast.info('Info message')
 
 ### Change Styling
 1. Edit `style.adx.css` only
-2. Use tokens: `tokens.space-N`, `tokens.color-name`
+2. Use existing tokens, e.g. `tokens.space-4`, `tokens.primary`; list them with `adx tokens`
 3. Use abbreviated properties: `pad`, `bg`, `radius`
 
 ## Token Optimization Tips
@@ -403,7 +313,8 @@ MOTION subtle default; exit faster than enter; gate non-essential behind
        reduced-motion.
 ```
 
-**Beyond the baseline** (design systems, palettes, fonts, charts, stack rules): invoke the `ui-ux-pro-max` skill — one dominant intent, 2-5 terms. Its output must still satisfy this baseline.
+Follow the app's existing design system and accessibility requirements. Optional
+design tools or agent skills are not prerequisites for using ADX.
 
 ## Error Messages
 
@@ -419,12 +330,11 @@ ADX provides concise, actionable errors:
 
 Grammar/AST contract: see [docs/adx-grammar.md](./adx-grammar.md) (parser's source of truth).
 
-Compiler (repo root, package `project-adx-0`, CLI command `adx`). M2 adds
-`--data`, page builds, composition, reactivity, and a measured benchmark on top
-of M1's single-component build.
+Run these commands from your app directory using the installed `adx` CLI
+(package `project-adx-0`). You do not need the framework source tree.
 
 ```bash
-# IMPLEMENTED (M1 + M2)
+# IMPLEMENTED
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # single component -> dist/<name>/
 adx build <page.json> [--out dist] [--tokens <path>]                  # page -> dist/[<slug>/]index.html
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component in-memory
@@ -433,12 +343,10 @@ adx init [name]                                                       # scaffold
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 adx tokens [--tokens <path>]                                          # list all design tokens, grouped by category
 adx help                                                              # print the full command listing (stdout, exit 0)
-npm run benchmark                                                     # measured token comparison (dev-only)
-
-# PLANNED
-adx dev                # Dev server with hot reload
-adx create / pattern   # Richer scaffolding + pattern generation
 ```
+
+Future CLI proposals (`dev`, richer `create`/`pattern`) are tracked in the
+[roadmap](./roadmap.md), not available commands.
 
 Build output per component:
 

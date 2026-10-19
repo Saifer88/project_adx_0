@@ -109,6 +109,33 @@ describe("scaffoldProject", () => {
     expect(h1Count).toBe(1);
     expect(result.html).not.toMatch(/<h2[\s>]/);
   });
+
+  it("compiles the agent reference's four-file example verbatim", () => {
+    const reference = readFileSync(
+      join(here, "..", "docs", "agent-reference.md"),
+      "utf8",
+    );
+    const example = reference.split("## Runnable Component Example\n")[1]
+      .split("## Design Tokens\n")[0];
+    const files = [...example.matchAll(/^### ([\w.-]+)\n```\w+\n([\s\S]*?)\n```/gm)];
+    expect(files.map((match) => match[1])).toEqual([
+      "manifest.json",
+      "structure.adx",
+      "behavior.adx.js",
+      "style.adx.css",
+    ]);
+    for (const [, filename, content] of files) {
+      writeFileSync(join(dir, filename), `${content}\n`, "utf8");
+    }
+
+    const result = compileComponent(dir, { tokensPath: repoTokensPath });
+
+    expect(result.html).toContain("Counter");
+    expect(result.html).toContain("Clicks: 0");
+    expect(result.html).not.toContain("{{");
+    expect(result.css).not.toContain("tokens.");
+    expect(result.glue).toContain("onIncrement");
+  });
 });
 
 describe("adx init CLI dispatch", () => {
