@@ -84,6 +84,13 @@ adx serve [dir] [--port 3000] [--host localhost]
 
 adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]
 # Validate in-memory (prints OK and exits 0, or an [ADX] error and exits 1).
+
+adx tokens [--tokens <path>]
+# List every design token (name = value), grouped by category. Defaults to the
+# bundled token set; pass --tokens to point at your own file.
+
+adx help
+# Print the full command listing with flags and one-line descriptions.
 ```
 
 ### End-to-end example

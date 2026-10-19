@@ -28,6 +28,20 @@
  *       non-loopback `--host` (e.g. `0.0.0.0`) exposes the output on the network
  *       with no access control, and it does not guard against symlinks placed
  *       inside the served directory that point outside it.
+ *
+ *   adx tokens [--tokens <path>]
+ *       Lists every design token (name = value), grouped by category, to stdout.
+ *       The default source is the package's bundled tokens/design-tokens.json,
+ *       resolved relative to the installed module (not CWD) so a global install
+ *       still finds it; `--tokens <path>` overrides it, resolved against CWD like
+ *       build/check. One-shot: exits 0 on success, or prints the `[ADX] …` error
+ *       to stderr and exits 1 on a load/parse failure.
+ *
+ *   adx help
+ *       Prints the full command listing (every subcommand with its flags and a
+ *       one-line description) to stdout and exits 0 — an explicit request, not an
+ *       error. (Bare `adx` with no command keeps the short usage on stderr, exit
+ *       1; see run().)
  */
 
 import {
@@ -39,7 +53,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, extname, join, resolve, sep } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createServer,
@@ -50,6 +64,8 @@ import {
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
 import { scaffoldProject } from "./scaffold.js";
+import { loadTokens } from "./tokens/load.js";
+import type { RawTokens } from "./tokens/types.js";
 import type { ComponentAsset } from "./codegen/glue.js";
 
 interface ParsedArgs {
@@ -124,14 +140,112 @@ function loadData(path: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+// Single source of truth for the command listing so `usage()` (short, error
+// form) and `helpText()` (full `adx help` output) cannot drift. Each entry is
+// the invocation line plus a one-line description.
+const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
+  {
+    invocation: "adx init [name]",
+    description: "Scaffold a new starter project into ./<name> (or CWD).",
+  },
+  {
+    invocation:
+      "adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
+    description: "Compile a component or page to static HTML/CSS/JS.",
+  },
+  {
+    invocation:
+      "adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+    description: "Validate + emit in-memory; writes nothing (prints OK).",
+  },
+  {
+    invocation: "adx serve [dir] [--port 3000] [--host localhost]",
+    description: "Preview already-compiled output over HTTP (dir defaults to dist).",
+  },
+  {
+    invocation: "adx tokens [--tokens <path>]",
+    description: "List all design tokens, grouped by category.",
+  },
+  {
+    invocation: "adx help",
+    description: "Show this full command listing.",
+  },
+];
+
+/** Short usage shown on errors (bare/unknown command, missing arg): the
+ * invocation lines only, to stderr. */
 function usage(): string {
-  return [
-    "Usage:",
-    "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
-    "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
-    "  adx init [name]",
-    "  adx serve [dir] [--port 3000] [--host localhost]",
-  ].join("\n");
+  return ["Usage:", ...COMMANDS.map((c) => `  ${c.invocation}`)].join("\n");
+}
+
+/** Full help printed by `adx help`: every command with its one-line
+ * description. Built from the same `COMMANDS` source as `usage()`. */
+function helpText(): string {
+  const lines = ["ADX CLI — commands:", ""];
+  for (const c of COMMANDS) {
+    lines.push(`  ${c.invocation}`);
+    lines.push(`      ${c.description}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * List every design token (`name = value`), grouped by category, to stdout
+ * (`adx tokens [--tokens <path>]`). One-shot: returns 0 on success, or prints
+ * the standard `[ADX] <path> - …` error to stderr and returns 1 on a load/parse
+ * failure — just like build/check.
+ *
+ * The default source is the package's bundled tokens/design-tokens.json,
+ * resolved from this compiled module's location (`import.meta.url` → dist/cli.js
+ * → up to the package root) so a GLOBAL install still finds it rather than
+ * looking in the user's CWD. A `--tokens <path>` override is resolved against
+ * CWD, exactly as build/check resolve their token paths.
+ */
+function runTokens(args: ParsedArgs): number {
+  const path = args.tokens
+    ? resolve(args.tokens)
+    : resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "tokens",
+        "design-tokens.json",
+      );
+
+  try {
+    // Route the read+validation through the shared loader so a missing or
+    // malformed file throws here and produces the same `[ADX] …` error path as
+    // the other commands. The returned table is intentionally unused: the
+    // grouped listing below reads the raw JSON to preserve category structure.
+    loadTokens(path);
+    const data = JSON.parse(readFileSync(path, "utf8")) as RawTokens;
+
+    const out: string[] = [];
+    for (const [group, entries] of Object.entries(data)) {
+      if (typeof entries !== "object" || entries === null) {
+        continue; // skip scalar meta fields like "$schema-note"
+      }
+      out.push(`${group}:`);
+      // Align values on a single column within each group for a scannable list.
+      const names = Object.keys(entries);
+      const width = names.reduce((max, name) => Math.max(max, name.length), 0);
+      for (const [name, value] of Object.entries(entries)) {
+        out.push(`  ${name.padEnd(width)}  ${value}`);
+      }
+      out.push("");
+    }
+    process.stdout.write(out.join("\n") + "\n");
+    return 0;
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : String(err);
+    // Normalize bare loader/JSON errors into the standard `[ADX] <path> - …`
+    // shape used across the CLI.
+    const text = message.startsWith("[ADX]")
+      ? message
+      : `[ADX] ${path} - ${message}`;
+    process.stderr.write(text + "\n");
+    return 1;
+  }
 }
 
 // Content types for the static files the compiler emits. `.js` is served as
@@ -378,11 +492,25 @@ function runInit(args: ParsedArgs): number {
 }
 
 function run(args: ParsedArgs): number {
+  // `help` is an explicit request: full help to STDOUT, exit 0 (not an error).
+  if (args.command === "help") {
+    process.stdout.write(helpText() + "\n");
+    return 0;
+  }
+
+  // `tokens` lists the design tokens; one-shot like build/check/init.
+  if (args.command === "tokens") {
+    return runTokens(args);
+  }
+
   if (
     args.command !== "build" &&
     args.command !== "check" &&
     args.command !== "init"
   ) {
+    // Bare `adx` and any unknown command: short usage to STDERR, exit 1
+    // (RECOMMENDED — a missing/unknown command is an error, so stderr + nonzero;
+    // `adx help` is the discoverable, exit-0 path for intentional help).
     process.stderr.write(usage() + "\n");
     return 1;
   }

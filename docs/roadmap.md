@@ -125,8 +125,9 @@ refuses to overwrite an existing scaffold file (writing nothing on conflict),
 and the result builds and serves with the commands above with no `--data`.
 
 ## Later milestones (unscheduled)
-Pattern library, dev server + hot reload, richer `adx create`/`tokens`/`pattern`
-CLI (beyond the shipped `adx init` scaffolder), compile-time WCAG-AA audit,
+Pattern library, dev server + hot reload, richer `adx create`/`pattern` CLI
+(beyond the shipped `adx init` scaffolder and `adx tokens` token listing),
+compile-time WCAG-AA audit,
 sitemap.xml/robots.txt generation, bundle-size budgets, VS Code extension,
 browser devtools. See the README roadmap table.
 

@@ -431,11 +431,12 @@ adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate
 adx check <page.json> [--tokens <path>]                               # validate every page instance
 adx init [name]                                                       # scaffold a starter project (./<name> or CWD)
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
+adx tokens [--tokens <path>]                                          # list all design tokens, grouped by category
+adx help                                                              # print the full command listing (stdout, exit 0)
 npm run benchmark                                                     # measured token comparison (dev-only)
 
 # PLANNED
 adx dev                # Dev server with hot reload
-adx tokens             # List all available tokens
 adx create / pattern   # Richer scaffolding + pattern generation
 ```
 

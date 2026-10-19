@@ -606,14 +606,14 @@ adx build <page.json> [--out dist] [--tokens <path>]                  # compile 
 adx serve [dir] [--port 3000] [--host localhost]                      # preview a build locally (static server, does not compile)
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component (prints OK, or an [ADX] error)
 adx check <page.json> [--tokens <path>]                               # validate every component instance on a page
+adx tokens [--tokens <path>]                                          # list every design token (name = value), grouped by category
+adx help                                                              # show the full command listing and exit
 npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
 
 # Planned
 adx create <name>      # Richer project templates
 adx dev                # Start dev server (hot reload)
-adx tokens             # List all available tokens
 adx pattern <name>     # Generate pattern component
-adx help               # Show help
 ```
 
 ### Start a new project
