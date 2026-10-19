@@ -1,0 +1,39 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "label": "First-publish token cannot be package-scoped",
+      "confidence": "likely",
+      "severity": "blocking",
+      "detail": "README.md:44 requires scoping the granular Actions token to project-adx-0, but the package is not yet on npm (the registry returns E404), so it cannot be selected as a package-specific token resource before the workflow creates it. Document a temporary broader read/write, 2FA-bypass token with immediate post-publish rotation, or a manual first publish followed by a package-scoped Actions token. (Reviewer B)"
+    },
+    {
+      "label": "Prerelease publishes to latest dist-tag",
+      "confidence": "possible",
+      "severity": "low",
+      "detail": "`npm publish` with no --tag tags 0.1.0-alpha as `latest`, so `npm install project-adx-0` would pull an alpha. Fine while it is the only version; add `--tag alpha` before a stable release coexists. Non-blocking. (Reviewer A)"
+    },
+    {
+      "label": "Symlink escape from served root",
+      "confidence": "confirmed",
+      "severity": "low",
+      "detail": "statSync follows symlinks and the serve containment check is purely lexical (no realpath), so a symlink inside the served root pointing outside would be served. Documented as a known assumption for a loopback preview over trusted compiler output; close with a realpath re-check if serve ever targets untrusted trees. Non-blocking. (Reviewer A)"
+    },
+    {
+      "label": "--host 0.0.0.0 is unauthenticated",
+      "confidence": "confirmed",
+      "severity": "low",
+      "detail": "Binding a non-loopback host serves build output to the LAN with no access control. Default localhost is safe and the exposure is documented in the serve help comment; appropriate while serve remains a local preview over trusted output. Non-blocking. (Reviewer A)"
+    },
+    {
+      "label": "No concurrency guard on publish workflow",
+      "confidence": "confirmed",
+      "severity": "low",
+      "detail": "Two near-simultaneous main pushes could run the publish job concurrently; the version guard still prevents a duplicate publish of the same version, but a `concurrency: publish` group would avoid the race entirely. Non-blocking. (Reviewer A)"
+    }
+  ],
+  "reviewDoc": [
+    "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/review-a.md",
+    "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/review-b.md"
+  ]
+}

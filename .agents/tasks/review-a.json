@@ -1,0 +1,30 @@
+{
+  "approved": true,
+  "findings": [
+    {
+      "label": "Prerelease publishes to latest dist-tag",
+      "confidence": "possible",
+      "severity": "low",
+      "detail": "`npm publish` with no --tag tags 0.1.0-alpha as `latest`, so `npm install project-adx-0` would pull an alpha. Fine while it is the only version; add `--tag alpha` before a stable release coexists. Non-blocking."
+    },
+    {
+      "label": "Symlink escape from served root",
+      "confidence": "confirmed",
+      "severity": "low",
+      "detail": "statSync follows symlinks and the serve containment check is purely lexical (no realpath), so a symlink inside the served root pointing outside would be served. Documented as a known assumption for a loopback preview over trusted compiler output; close with a realpath re-check if serve ever targets untrusted trees. Non-blocking."
+    },
+    {
+      "label": "--host 0.0.0.0 is unauthenticated",
+      "confidence": "confirmed",
+      "severity": "low",
+      "detail": "Binding a non-loopback host serves build output to the LAN with no access control. Default localhost is safe and the exposure is documented in the serve help comment; appropriate while serve remains a local preview over trusted output. Non-blocking."
+    },
+    {
+      "label": "No concurrency guard on publish workflow",
+      "confidence": "confirmed",
+      "severity": "low",
+      "detail": "Two near-simultaneous main pushes could run the publish job concurrently; the version guard still prevents a duplicate publish of the same version, but a `concurrency: publish` group would avoid the race entirely. Non-blocking."
+    }
+  ],
+  "reviewDoc": "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/review-a.md"
+}

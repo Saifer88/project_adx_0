@@ -1,0 +1,8 @@
+{
+  "approved": true,
+  "findings": [
+    "Contradictory help-source comment — confirmed, non-blocking: `src/cli.ts:197` says `usage()` shares `COMMANDS`, although the remediation intentionally keeps legacy usage separate; remove that stale clause.",
+    "Path-origin behavior lacks automated integration coverage — confirmed, non-blocking: source-level tests use an absolute override and do not execute installed-layout `dist/cli.js` from another CWD; retain the successful smoke evidence and add a focused subprocess/packed-CLI regression when practical."
+  ],
+  "reviewDoc": "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/tokens-help-review-gpt.md"
+}

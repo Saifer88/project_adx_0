@@ -1,0 +1,27 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "No automated test for CWD-independent default token path",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "The import.meta.url resolution that makes a global install print the bundled tokens from any CWD is proven only by the recorded manual /tmp smoke run, not by a durable test. In-process run()/source-level tests use an absolute override and pass regardless of CWD, so a regression to a process.cwd()-relative default would not be caught. Add a focused subprocess/packed-CLI regression that invokes the built dist/cli.js from a foreign CWD (and passes a relative --tokens file) when practical. Flagged by both reviewers (opus, gpt)."
+    },
+    {
+      "label": "Positional path ignored by `adx tokens`",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "`adx tokens ./my.json` parses `./my.json` into args.dir and silently discards it, falling back to the bundled set; only `--tokens` is honored. Matches the documented `adx tokens [--tokens <path>]` signature, so non-blocking, but a user typo could print the wrong tokens with no warning. Consider a future note or positional support. Flagged by opus."
+    },
+    {
+      "label": "Contradictory help-source comment",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "`src/cli.ts:197` says `usage()` shares the `COMMANDS` source, although the remediation intentionally keeps legacy usage as a separate literal so old error output cannot expand when help changes. Remove the stale clause so future maintenance does not reintroduce the legacy-usage regression. Flagged by gpt."
+    }
+  ],
+  "reviewDoc": [
+    "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/tokens-help-review-opus.md",
+    "/Users/pirrima001/coding/personal/project_adx_0/.agents/tasks/tokens-help-review-gpt.md"
+  ]
+}
