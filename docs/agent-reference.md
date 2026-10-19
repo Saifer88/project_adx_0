@@ -6,10 +6,11 @@ This document is the single source of truth for AI agents working with ADX. It i
 
 ## Current Capabilities
 
-Implemented: `build`/`check`/`serve`, typed props/defaults, static
+Implemented: `build`/`check`/`serve`/`init`, typed props/defaults, static
 pages/composition/slots, scoped CSS, per-instance text/attribute updates, and
-standalone child assets. `serve` is a static preview server only (no compile).
-Not implemented: `@adx/patterns`, lifecycle execution, scaffolding, a dev server
+standalone child assets. `serve` is a static preview server only (no compile);
+`init` scaffolds a minimal, buildable starter project.
+Not implemented: `@adx/patterns`, lifecycle execution, a dev server
 with hot reload, automatic accessibility audits, or structural/computed reactivity.
 The planned pattern examples below are proposals, not runnable APIs.
 Both `build` and `check` execute trusted component code; `node:vm` is not a
@@ -19,6 +20,8 @@ security boundary. See the build-time execution section before compiling depende
 
 ```
 COMPONENT CREATION
+  Fast path (new project):  adx init [name]  -> starter component + page + tokens
+  By hand:
   1. mkdir component-name
   2. Create 4 files: structure.adx, behavior.adx.js, style.adx.css, manifest.json
   3. Define props in manifest.json first
@@ -426,13 +429,14 @@ adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # single c
 adx build <page.json> [--out dist] [--tokens <path>]                  # page -> dist/[<slug>/]index.html
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component in-memory
 adx check <page.json> [--tokens <path>]                               # validate every page instance
+adx init [name]                                                       # scaffold a starter project (./<name> or CWD)
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 npm run benchmark                                                     # measured token comparison (dev-only)
 
 # PLANNED
 adx dev                # Dev server with hot reload
 adx tokens             # List all available tokens
-adx create / pattern   # Scaffolding
+adx create / pattern   # Richer scaffolding + pattern generation
 ```
 
 Build output per component:

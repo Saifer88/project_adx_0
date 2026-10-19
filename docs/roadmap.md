@@ -116,10 +116,19 @@ are in `benchmark/tasks.json`; the protocol is in `benchmark/README.md`.
 Actual paired agent runs still need to be collected. No end-to-end savings are
 claimed from the source-reading measurement.
 
+## Shipped — project scaffolding (`adx init`) ✅
+
+`adx init [name]` scaffolds a minimal, buildable starter project (one
+`hello-card` component, an `index.json` page, the design tokens, and a README)
+into `./<name>` — or the current directory when the name is omitted or `.`. It
+refuses to overwrite an existing scaffold file (writing nothing on conflict),
+and the result builds and serves with the commands above with no `--data`.
+
 ## Later milestones (unscheduled)
-Pattern library, dev server + hot reload, `adx create`/`tokens`/`pattern` CLI,
-compile-time WCAG-AA audit, sitemap.xml/robots.txt generation, bundle-size
-budgets, VS Code extension, browser devtools. See the README roadmap table.
+Pattern library, dev server + hot reload, richer `adx create`/`tokens`/`pattern`
+CLI (beyond the shipped `adx init` scaffolder), compile-time WCAG-AA audit,
+sitemap.xml/robots.txt generation, bundle-size budgets, VS Code extension,
+browser devtools. See the README roadmap table.
 
 ## Distribution (how users get it)
 The repo is one npm package named `project-adx-0` (the CLI command it installs

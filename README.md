@@ -70,6 +70,11 @@ token by generating a new one on npm and updating the `NPM_TOKEN` secret.
 ## CLI
 
 ```bash
+adx init [name]
+# Scaffold a minimal starter project (one component, a page, tokens, a README)
+# into ./<name>, or the current directory when the name is omitted or `.`.
+# Refuses to overwrite an existing scaffold file.
+
 adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]
 # Compile a component or a page to static HTML + scoped CSS + hydration glue.
 
@@ -86,11 +91,16 @@ adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]
 ```bash
 npm install -g project-adx-0
 
-# Build the user-card fixture into dist/
-adx build fixtures/user-card --data fixtures/user-card/data.json --out dist
+# Scaffold a fresh project and move into it
+adx init my-app
+cd my-app
+
+# Build the starter component and page into dist/
+adx build hello-card
+adx build index.json
 
 # Serve the result and open the printed URL (http://localhost:3000/)
-adx serve dist/user-card
+adx serve dist
 ```
 
 ## Quick Start (from source)
@@ -143,10 +153,10 @@ Each component consists of 4 files:
 - **Current Milestone**: Real data binding, multi-component pages, and reactivity contract.
 - **Next**: Pattern library and a dev server with hot reload.
 
-Available: typed props/defaults, static composition and slots, scoped CSS,
+Available: project scaffolding via `adx init`, typed props/defaults, static composition and slots, scoped CSS,
 per-instance text/attribute updates, hydration assets for both pages and
 standalone composed components, and a static `adx serve` for local preview.
 `:if`/`:for` and computed values are build-time only. Lifecycle execution,
-`@adx/patterns`, scaffolding and hot reload are not implemented.
+`@adx/patterns`, and hot reload are not implemented.
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full plan.

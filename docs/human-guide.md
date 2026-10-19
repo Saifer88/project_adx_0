@@ -34,8 +34,8 @@ node dist/cli.js check fixtures/site/index.json
 
 Run these commands from this repository using Node 22.13+ (22.x) or Node 24+.
 You can also install the published CLI with `npm install -g project-adx-0`
-(which gives you the `adx` command). `adx create` and `adx dev` are not
-available yet.
+(which gives you the `adx` command). Use `adx init` to scaffold a fresh starter
+project; `adx dev` (hot-reload dev server) is not available yet.
 
 ### Project Structure
 
@@ -596,10 +596,11 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestones 1 and 2 ship the build/check/serve commands below; the rest are planned.
+Milestones 1 and 2 ship the build/check/serve/init commands below; the rest are planned.
 
 ```bash
 # Working today (M1 + M2)
+adx init [name]                                                       # scaffold a new starter project (./<name>, or the current dir)
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
 adx build <page.json> [--out dist] [--tokens <path>]                  # compile a page (composes components) to one index.html
 adx serve [dir] [--port 3000] [--host localhost]                      # preview a build locally (static server, does not compile)
@@ -608,12 +609,30 @@ adx check <page.json> [--tokens <path>]                               # validate
 npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
 
 # Planned
-adx create <name>      # Create new project
+adx create <name>      # Richer project templates
 adx dev                # Start dev server (hot reload)
 adx tokens             # List all available tokens
 adx pattern <name>     # Generate pattern component
 adx help               # Show help
 ```
+
+### Start a new project
+
+The quickest way in is `adx init`. Give it a name and it writes a tiny, ready
+starter — one `hello-card` component, an `index.json` page, the design tokens,
+and a README — then you build and preview:
+
+```bash
+adx init my-app
+cd my-app
+adx build hello-card    # compile the component -> dist/hello-card/
+adx build index.json    # compile the page -> dist/index.html
+adx serve dist          # open the printed http://localhost:3000/ URL
+```
+
+`adx init` refuses to overwrite an existing project (it writes nothing if any
+starter file is already there), so it is safe to run in a fresh directory. Omit
+the name (or pass `.`) to scaffold into the current directory.
 
 ### Giving your component real data
 

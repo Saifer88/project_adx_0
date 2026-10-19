@@ -11,6 +11,14 @@
  *       Validates + emits in-memory, writes nothing. Prints "OK" and exits 0 on
  *       success, or the `[ADX] ...` error and exits 1 on failure.
  *
+ *   adx init [name]
+ *       Scaffolds a new, minimal ADX starter project (one `hello-card`
+ *       component, an `index.json` page, the design tokens, and a README) into
+ *       `./<name>` — or the current directory when `name` is omitted or `.`.
+ *       One-shot: it refuses to overwrite an existing scaffold file (writing
+ *       nothing on conflict), prints what it created plus the next steps, and
+ *       exits 0 on success / 1 on error, like `build`/`check`.
+ *
  *   adx serve [dir] [--port 3000] [--host localhost]
  *       Static file server for already-compiled output; it does NOT compile.
  *       `dir` defaults to `dist`. Serves HTML/CSS/JS ES modules over HTTP so you
@@ -41,6 +49,7 @@ import {
 } from "node:http";
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
+import { scaffoldProject } from "./scaffold.js";
 import type { ComponentAsset } from "./codegen/glue.js";
 
 interface ParsedArgs {
@@ -120,6 +129,7 @@ function usage(): string {
     "Usage:",
     "  adx build <componentDir|page.json> [--out dist] [--tokens <path>] [--data <file.json>]",
     "  adx check <componentDir|page.json> [--tokens <path>] [--data <file.json>]",
+    "  adx init [name]",
     "  adx serve [dir] [--port 3000] [--host localhost]",
   ].join("\n");
 }
@@ -338,11 +348,56 @@ function writeComponentAssets(outDir: string, components: ComponentAsset[]): voi
   }
 }
 
+/**
+ * Scaffold a new starter project (`adx init [name]`). One-shot: resolves the
+ * target (`name` → `./<name>`; omitted or `.` → CWD), writes the starter files
+ * via `scaffoldProject` (which refuses to overwrite, throwing an `[ADX]` error
+ * that `run()` turns into stderr + exit 1), then prints what was created plus
+ * the exact next-step commands and returns 0.
+ */
+function runInit(args: ParsedArgs): number {
+  const target = args.dir ?? ".";
+  const base = resolve(target);
+  const created = scaffoldProject(target);
+
+  const out: string[] = [];
+  out.push(`Created ADX project in ${base}`);
+  for (const path of created) {
+    out.push(`  ${path}`);
+  }
+  out.push("");
+  out.push("Next steps:");
+  if (target !== ".") {
+    out.push(`  cd ${target}`);
+  }
+  out.push(`  adx build hello-card    # compile the component -> dist/hello-card/`);
+  out.push(`  adx build index.json    # compile the page -> dist/index.html`);
+  out.push(`  adx serve dist          # preview locally at http://localhost:3000/`);
+  process.stdout.write(out.join("\n") + "\n");
+  return 0;
+}
+
 function run(args: ParsedArgs): number {
-  if (args.command !== "build" && args.command !== "check") {
+  if (
+    args.command !== "build" &&
+    args.command !== "check" &&
+    args.command !== "init"
+  ) {
     process.stderr.write(usage() + "\n");
     return 1;
   }
+
+  // `init` takes an OPTIONAL positional (name); it never requires `dir`.
+  if (args.command === "init") {
+    try {
+      return runInit(args);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(message + "\n");
+      return 1;
+    }
+  }
+
   if (!args.dir) {
     process.stderr.write(`Missing <componentDir|page.json>.\n${usage()}\n`);
     return 1;
