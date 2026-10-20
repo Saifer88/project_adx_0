@@ -97,24 +97,27 @@ Build Phases 1-6 together as a single M2, rather than splitting into M2a/M2b.
 
 ## Open: broaden the token benchmark (settle the headline claim)
 
-The M2 benchmark is narrow — it measures only read-tokens on one small component
-and so shows ~13-14%, far under the 60-80% design target. That slice does not test
-the workflow the target describes, so it neither proves nor disproves it. Since
-token efficiency is the project's entire reason to exist, the claim stays unsettled
-until the benchmark is broadened. Needed tasks:
+The original M2 UserCard benchmark measures ~13-14% source-reading savings.
+A support portal now adds five routes, five reusable components per framework,
+shared data/CSS and real React prerendering/hydration. Shared browser checks prove
+content and interaction parity at desktop/mobile sizes. Selected portal reading
+tasks show -7.9% to 60.6% savings, including a 4.0% ADX regression for a complete
+read. This does not settle the 60-80% full-workflow design target. Remaining work:
 - **Manifest-scan-only**: read just `manifest.json` to learn the API vs. parsing
   the full React component — ADX's strongest single case.
 - **Full modify-and-explain**: count reasoning + writing + explanation tokens, not
   just reading, across a real edit (ADX's estimated wins were largest here).
-- **Larger / multi-component fixtures**: where React's per-file overhead compounds.
+- **Recorded application trials**: use the shipped portal tasks, keep failure
+  costs, and apply the same Caveman ultra policy to both frameworks.
 Then update the docs with whichever figure the broadened benchmark actually shows —
 raising or lowering the claim to match the measurement, not the reverse.
 
 Recording/reporting support is now available through
 `npm run benchmark -- --workflow runs.json`. Task prompts and acceptance criteria
 are in `benchmark/tasks.json`; the protocol is in `benchmark/README.md`.
-Actual paired agent runs still need to be collected. No end-to-end savings are
-claimed from the source-reading measurement.
+Build the equivalent portals with `npm run benchmark:app`. Actual paired agent
+runs still need to be collected. No end-to-end savings are claimed from the
+source-reading measurements.
 
 ## Shipped — project scaffolding (`adx init`) ✅
 

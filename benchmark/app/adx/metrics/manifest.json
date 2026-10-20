@@ -1,0 +1,7 @@
+{
+  "name": "PortalMetrics",
+  "version": "1.0.0",
+  "props": {
+    "metrics": { "type": "array", "required": true }
+  }
+}

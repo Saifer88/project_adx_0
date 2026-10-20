@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   measure,
   formatTable,
@@ -92,6 +93,16 @@ describe("measure (pure)", () => {
     expect(r.tasks[1].savings).toBeCloseTo((6 - 3) / 6, 10); // 0.5
   });
 
+  it("reports negative savings when ADX source costs more", () => {
+    const result = measure([{
+      id: "larger-adx", label: "Larger ADX",
+      adx: [{ path: "adx/a", content: "one two three" }],
+      react: [{ path: "react/a", content: "one two" }],
+    }], wordEncoder, "stub");
+    expect(result.tasks[0].savings).toBe(-0.5);
+    expect(formatTable(result)).toContain("-50.0%");
+  });
+
   it("treats an empty react set as zero savings (no divide-by-zero)", () => {
     const r = measure(
       [{ id: "t", label: "t", adx: [{ path: "a", content: "x y" }], react: [] }],
@@ -100,6 +111,38 @@ describe("measure (pure)", () => {
     );
     expect(r.tasks[0].react.tokens).toBe(0);
     expect(r.tasks[0].savings).toBe(0);
+  });
+
+  describe("support portal benchmark file sets", () => {
+    const tasks = JSON.parse(readFileSync(new URL("../benchmark/tasks.json", import.meta.url), "utf8"));
+
+    it("keeps UserCard tasks and includes runnable application scenarios", () => {
+      expect(tasks.tasks.map((task: { id: string }) => task.id)).toEqual([
+        "understand", "modify-style", "add-prop",
+        "portal-understand", "portal-style", "portal-add-field", "portal-validation",
+      ]);
+      const ids = tasks.tasks.map((task: { id: string }) => task.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const task of tasks.tasks) {
+        for (const framework of ["adx", "react"]) {
+          expect(new Set(task[framework]).size).toBe(task[framework].length);
+          for (const path of task[framework]) {
+            expect(() => readFileSync(new URL(`../benchmark/${path}`, import.meta.url))).not.toThrow();
+          }
+        }
+      }
+    });
+
+    it("counts shared portal inputs equally and leaves the shared-CSS comparison neutral", () => {
+      const full = tasks.tasks.find((task: { id: string }) => task.id === "portal-understand");
+      for (const path of ["app/data.json", "app/pages.mjs", "app/style.css", "app/build.mjs"]) {
+        expect(full.adx).toContain(path);
+        expect(full.react).toContain(path);
+      }
+      const style = tasks.tasks.find((task: { id: string }) => task.id === "portal-style");
+      expect(style.adx).toEqual(["app/style.css"]);
+      expect(style.react).toEqual(style.adx);
+    });
   });
 
   it("calls the injected encoder for every file (stub, not real counts)", () => {

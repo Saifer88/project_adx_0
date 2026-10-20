@@ -1,0 +1,29 @@
+<article .ticket-detail>
+  <section aria-labelledby="subject">
+    <h2 id="subject">{{ticket.subject}}</h2>
+    <status-badge :label="ticket.status" />
+    <p>{{ticket.description}}</p>
+  </section>
+  <section .customer aria-labelledby="customer-title">
+    <h2 id="customer-title">Customer</h2>
+    <dl>
+      <dt>Name</dt><dd>{{ticket.customer}}</dd>
+      <dt>Company</dt><dd>{{ticket.company}}</dd>
+      <dt>Email</dt><dd><a :href="emailHref">{{ticket.email}}</a></dd>
+    </dl>
+  </section>
+  <form .reply-form @submit="onSave" aria-labelledby="reply-title">
+    <h2 id="reply-title">Response draft</h2>
+    <p .hint id="draft-hint">Local draft only. Changes reset when this page reloads.</p>
+    <label for="priority">Priority</label>
+    <select id="priority" :value="priority" @change="onPriority">
+      <option value="Normal" :selected="normal">Normal</option>
+      <option value="High" :selected="high">High</option>
+    </select>
+    <p .hint>Current priority: {{priority}}</p>
+    <label for="response">Response</label>
+    <textarea id="response" :value="draft" :aria-invalid="invalid" aria-describedby="draft-hint draft-status" @input="onDraft">{{draft}}</textarea>
+    <button type="submit">Save draft</button>
+    <p .form-status id="draft-status" role="status" aria-live="polite">{{message}}</p>
+  </form>
+</article>

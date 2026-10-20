@@ -1,0 +1,7 @@
+{
+  "name": "StatusBadge",
+  "version": "1.0.0",
+  "props": {
+    "label": { "type": "string", "required": true }
+  }
+}

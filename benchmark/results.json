@@ -94,6 +94,246 @@
         ]
       },
       "savings": 0.1377245508982036
+    },
+    {
+      "id": "portal-understand",
+      "label": "Read the complete support portal and shared build inputs",
+      "adx": {
+        "tokens": 3918,
+        "files": [
+          {
+            "path": "app/data.json",
+            "tokens": 383
+          },
+          {
+            "path": "app/pages.mjs",
+            "tokens": 303
+          },
+          {
+            "path": "app/style.css",
+            "tokens": 1042
+          },
+          {
+            "path": "app/build.mjs",
+            "tokens": 943
+          },
+          {
+            "path": "app/adx/header/manifest.json",
+            "tokens": 60
+          },
+          {
+            "path": "app/adx/header/structure.adx",
+            "tokens": 80
+          },
+          {
+            "path": "app/adx/header/behavior.adx.js",
+            "tokens": 52
+          },
+          {
+            "path": "app/adx/header/style.adx.css",
+            "tokens": 0
+          },
+          {
+            "path": "app/adx/metrics/manifest.json",
+            "tokens": 44
+          },
+          {
+            "path": "app/adx/metrics/structure.adx",
+            "tokens": 52
+          },
+          {
+            "path": "app/adx/metrics/behavior.adx.js",
+            "tokens": 15
+          },
+          {
+            "path": "app/adx/metrics/style.adx.css",
+            "tokens": 0
+          },
+          {
+            "path": "app/adx/status-badge/manifest.json",
+            "tokens": 44
+          },
+          {
+            "path": "app/adx/status-badge/structure.adx",
+            "tokens": 8
+          },
+          {
+            "path": "app/adx/status-badge/behavior.adx.js",
+            "tokens": 15
+          },
+          {
+            "path": "app/adx/status-badge/style.adx.css",
+            "tokens": 0
+          },
+          {
+            "path": "app/adx/ticket-list/manifest.json",
+            "tokens": 70
+          },
+          {
+            "path": "app/adx/ticket-list/structure.adx",
+            "tokens": 134
+          },
+          {
+            "path": "app/adx/ticket-list/behavior.adx.js",
+            "tokens": 21
+          },
+          {
+            "path": "app/adx/ticket-list/style.adx.css",
+            "tokens": 0
+          },
+          {
+            "path": "app/adx/ticket-detail/manifest.json",
+            "tokens": 54
+          },
+          {
+            "path": "app/adx/ticket-detail/structure.adx",
+            "tokens": 371
+          },
+          {
+            "path": "app/adx/ticket-detail/behavior.adx.js",
+            "tokens": 227
+          },
+          {
+            "path": "app/adx/ticket-detail/style.adx.css",
+            "tokens": 0
+          }
+        ]
+      },
+      "react": {
+        "tokens": 3768,
+        "files": [
+          {
+            "path": "app/data.json",
+            "tokens": 383
+          },
+          {
+            "path": "app/pages.mjs",
+            "tokens": 303
+          },
+          {
+            "path": "app/style.css",
+            "tokens": 1042
+          },
+          {
+            "path": "app/build.mjs",
+            "tokens": 943
+          },
+          {
+            "path": "app/react/App.jsx",
+            "tokens": 102
+          },
+          {
+            "path": "app/react/client.jsx",
+            "tokens": 52
+          },
+          {
+            "path": "app/react/Header.jsx",
+            "tokens": 114
+          },
+          {
+            "path": "app/react/Metrics.jsx",
+            "tokens": 70
+          },
+          {
+            "path": "app/react/StatusBadge.jsx",
+            "tokens": 22
+          },
+          {
+            "path": "app/react/TicketList.jsx",
+            "tokens": 161
+          },
+          {
+            "path": "app/react/TicketDetail.jsx",
+            "tokens": 576
+          }
+        ]
+      },
+      "savings": -0.03980891719745223
+    },
+    {
+      "id": "portal-style",
+      "label": "Read the shared stylesheet for a cross-page style change",
+      "adx": {
+        "tokens": 1042,
+        "files": [
+          {
+            "path": "app/style.css",
+            "tokens": 1042
+          }
+        ]
+      },
+      "react": {
+        "tokens": 1042,
+        "files": [
+          {
+            "path": "app/style.css",
+            "tokens": 1042
+          }
+        ]
+      },
+      "savings": 0
+    },
+    {
+      "id": "portal-add-field",
+      "label": "Read detail rendering and ticket data to add an optional field",
+      "adx": {
+        "tokens": 1035,
+        "files": [
+          {
+            "path": "app/data.json",
+            "tokens": 383
+          },
+          {
+            "path": "app/adx/ticket-detail/manifest.json",
+            "tokens": 54
+          },
+          {
+            "path": "app/adx/ticket-detail/structure.adx",
+            "tokens": 371
+          },
+          {
+            "path": "app/adx/ticket-detail/behavior.adx.js",
+            "tokens": 227
+          }
+        ]
+      },
+      "react": {
+        "tokens": 959,
+        "files": [
+          {
+            "path": "app/data.json",
+            "tokens": 383
+          },
+          {
+            "path": "app/react/TicketDetail.jsx",
+            "tokens": 576
+          }
+        ]
+      },
+      "savings": -0.07924921793534932
+    },
+    {
+      "id": "portal-validation",
+      "label": "Read the response editor source for a validation change",
+      "adx": {
+        "tokens": 227,
+        "files": [
+          {
+            "path": "app/adx/ticket-detail/behavior.adx.js",
+            "tokens": 227
+          }
+        ]
+      },
+      "react": {
+        "tokens": 576,
+        "files": [
+          {
+            "path": "app/react/TicketDetail.jsx",
+            "tokens": 576
+          }
+        ]
+      },
+      "savings": 0.6059027777777778
     }
   ]
 }

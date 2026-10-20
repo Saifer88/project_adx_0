@@ -1,0 +1,8 @@
+{
+  "name": "TicketDetail",
+  "version": "1.0.0",
+  "props": {
+    "ticket": { "type": "object", "required": true }
+  },
+  "deps": ["../status-badge"]
+}

@@ -8,17 +8,16 @@ AI agents consume tokens when:
 3. **Executing** changes (writing)
 4. **Documenting** changes (explaining)
 
-ADX optimizes all four phases.
+ADX aims to optimize all four phases; only selected source-reading costs have
+been measured.
 
 ## Measured (M2)
 
-> ⚠️ **This benchmark is narrow and not exhaustive.** It counts only the tokens an
-> agent spends **reading** a single small component, and excludes ADX's strongest
-> cases (manifest-only scanning, full modify-and-explain workflows, multi-component
-> apps). The measured ~13-14% is specific to these fixtures, not a lower bound or
-> a prediction for real-world work. The **60-80% figure is an unverified target**;
-> broader workflows may perform better or worse. Use the recorded-workflow
-> protocol in `benchmark/README.md` to collect comparable evidence.
+> **These are source-reading measurements, not full-workflow savings.**
+> UserCard and a runnable multi-component support portal use explicit file sets,
+> not observed agent traces. Results include both savings and regressions.
+> The **60-80% full-workflow figure remains an unverified target**. Use the
+> [recorded-workflow protocol](../benchmark/README.md) to collect actual evidence.
 
 Everything below the next heading is **estimated, pre-measurement**, including
 benefits attributed to the not-yet-implemented pattern library. Milestone 2
@@ -32,12 +31,17 @@ shipped a reproducible benchmark (`npm run benchmark`) that tokenizes the real
 | Understand (read full source) | 542 | 627 | 13.6% |
 | Modify a style | 254 | 293 | 13.3% |
 | Add a prop | 288 | 334 | 13.8% |
+| Read complete support portal | 3,918 | 3,768 | -4.0% |
+| Portal shared style | 1,042 | 1,042 | 0.0% |
+| Portal optional field | 1,035 | 959 | -7.9% |
+| Portal draft validation | 227 | 576 | 60.6% |
 
-So the honest, measured figure for a single component is ~13-14% — not the ~70%
-estimated below. The estimates assume multi-file / multi-component React overhead
-that a minimal one-component fixture does not exercise; the measured number is
-what the benchmark actually shows today. Reproduce it any time with
-`npm run benchmark`; the raw output is `benchmark/results.json`.
+Negative savings mean ADX costs more for the selected files. The portal uses
+identical data and CSS and verifies behavior against prerendered/hydrated React.
+Reading only ADX behavior can be cheaper than reading a whole React component,
+but reading the complete app costs more here. Neither the component nor portal
+results support a universal savings claim. Reproduce with `npm run benchmark`;
+raw output is in `benchmark/results.json`.
 
 ## Comparative Analysis (estimated, pre-measurement)
 
@@ -401,10 +405,12 @@ Based on GPT-4 pricing (example rates):
 
 ## Measurement Methodology
 
-**Measured (M2):** `npm run benchmark` tokenizes the committed `user-card` ADX
-fixture and a faithful minimal React equivalent with `gpt-tokenizer` (o200k_base
-encoder) across three tasks (understand / modify-style / add-prop) and writes
-`benchmark/results.json`. See **Measured (M2)** at the top for the result.
+**Measured:** `npm run benchmark` tokenizes committed UserCard and support-portal
+ADX/React sources with `gpt-tokenizer` (o200k_base), across seven explicit
+source-reading scenarios, and writes `benchmark/results.json`. Shared portal
+inputs are counted equally. See the results above and the
+[methodology](../benchmark/README.md) for scope, selection assumptions and
+exclusions.
 
 **Estimates (older sections):** the larger per-task figures throughout this
 document were hand counts predating the benchmark; they are kept for context but

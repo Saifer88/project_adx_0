@@ -15,11 +15,12 @@ This means:
 - A reusable pattern library is planned (not implemented yet)
 - Documentation is exhaustive (optimized for AI context windows)
 
-The result? Your AI pair programmer reads and edits ADX with fewer tokens. On the
-measured single-component tasks the saving is about 13-14% versus an equivalent
-React component (run `npm run benchmark` to reproduce); the larger figures you may
-have seen were hand estimates. See `docs/token-efficiency.md` for the measured
-numbers and where bigger savings are expected to come from.
+Source-reading cost depends on the task. UserCard measures about 13-14% savings
+versus minimal React; a runnable support portal ranges from 7.9% more tokens to
+60.6% fewer, with ADX costing 4.0% more for a complete portal read. Run
+`npm run benchmark` to reproduce. These do not measure editing or full workflows;
+see [token efficiency](./token-efficiency.md) and the
+[benchmark protocol](../benchmark/README.md).
 
 ## Quick Start
 

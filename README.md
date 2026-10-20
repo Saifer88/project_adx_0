@@ -200,10 +200,20 @@ dynamic interactions, and the [roadmap](docs/roadmap.md) for planned features.
 
 ## Token Efficiency
 
-Token-first authoring is the design goal. **Measured today: 13.3-13.8% fewer
-source-reading tokens** on one UserCard versus a minimal React equivalent.
-Full-workflow savings are not measured; 60-80% is a target, not a demonstrated
-result. See the [benchmark methodology](https://github.com/Saifer88/project_adx_0/blob/main/benchmark/README.md).
+Token-first authoring is the design goal. UserCard measures **13.3-13.8% fewer
+source-reading tokens** versus minimal React. A runnable support portal now adds
+five routes and shared desktop/mobile acceptance checks. Its selected reading
+tasks range from **7.9% more tokens to 60.6% fewer**; the complete portal read
+costs ADX **4.0% more**. These are file-reading costs, not measured workflow savings.
+The 60-80% full-workflow target remains unverified.
+
+```bash
+npm run benchmark       # reproduce all source-reading results
+npm run benchmark:app   # build equivalent ADX and prerendered React portals
+node dist/cli.js serve benchmark/app/dist/adx   # or benchmark/app/dist/react
+```
+
+See the [benchmark methodology and workflow protocol](benchmark/README.md).
 
 ## Contributing to ADX
 

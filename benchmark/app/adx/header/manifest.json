@@ -1,0 +1,8 @@
+{
+  "name": "PortalHeader",
+  "version": "1.0.0",
+  "props": {
+    "title": { "type": "string", "required": true },
+    "section": { "type": "string", "required": true }
+  }
+}

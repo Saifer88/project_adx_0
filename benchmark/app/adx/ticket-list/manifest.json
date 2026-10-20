@@ -1,0 +1,9 @@
+{
+  "name": "TicketList",
+  "version": "1.0.0",
+  "props": {
+    "title": { "type": "string", "required": true },
+    "tickets": { "type": "array", "required": true }
+  },
+  "deps": ["../status-badge"]
+}

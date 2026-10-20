@@ -1,0 +1,43 @@
+{
+  "tickets": [
+    {
+      "id": "SUP-1042",
+      "href": "/ticket-1042/",
+      "subject": "Invoice export fails for monthly reports",
+      "customer": "Ada Lovelace",
+      "email": "ada@example.test",
+      "company": "Analytical Studio",
+      "status": "Open",
+      "priority": "Normal",
+      "updated": "2026-10-19",
+      "description": "The monthly invoice export stops before the file downloads. Can you help us recover the report?",
+      "draft": "Thanks for reporting this. We are checking the export."
+    },
+    {
+      "id": "SUP-1043",
+      "href": "/ticket-1043/",
+      "subject": "Export <Q4> & account permissions",
+      "customer": "Grace Hopper",
+      "email": "grace@example.test",
+      "company": "Compiler Works",
+      "status": "Waiting",
+      "priority": "High",
+      "updated": "2026-10-18",
+      "description": "Our finance team needs access to the Q4 export without changing administrator permissions.",
+      "draft": "We can help review the permissions with your administrator."
+    },
+    {
+      "id": "SUP-1044",
+      "href": "/ticket-1044/",
+      "subject": "Update the billing contact",
+      "customer": "Katherine Johnson",
+      "email": "katherine@example.test",
+      "company": "Orbital Research",
+      "status": "Resolved",
+      "priority": "Normal",
+      "updated": "2026-10-17",
+      "description": "Please confirm that the new billing contact receives next month's invoice.",
+      "draft": "The billing contact is ready for your review."
+    }
+  ]
+}

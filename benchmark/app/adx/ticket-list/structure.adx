@@ -1,0 +1,13 @@
+<section .ticket-list aria-labelledby="queue-title">
+  <h2 id="queue-title">{{title}}</h2>
+  <ul>
+    <li .ticket-row :for="ticket in tickets" :key="ticket.id">
+      <div>
+        <a :href="ticket.href">{{ticket.subject}}</a>
+        <p>{{ticket.customer}} / {{ticket.company}}</p>
+        <p .ticket-meta>{{ticket.id}} / {{ticket.priority}} priority / Updated {{ticket.updated}}</p>
+      </div>
+      <div><status-badge :label="ticket.status" /></div>
+    </li>
+  </ul>
+</section>

@@ -4,21 +4,12 @@ Detailed comparison of ADX vs. React, Vue, and Svelte for AI agent efficiency.
 
 ## Measured (M2)
 
-> ⚠️ **Read this before the numbers.** This benchmark is a **narrow first
-> measurement, not an exhaustive or representative one.** It tokenizes a single
-> small component and counts only the tokens an agent spends **reading** files. It
-> deliberately does **not** cover ADX's strongest cases: manifest-only API
-> scanning, full modify-and-explain workflows (reasoning + writing + explaining),
-> or larger multi-component applications. On this one narrow slice ADX measures
-> **~13-14%** fewer tokens than React.
->
-> **The 60-80% figure remains the design target** the framework is built to reach
-> across a complete agent workflow at real-world scale. It is a **hypothesis, not
-> yet proven** — and the ~13-14% here does **not** disprove it, because this
-> benchmark does not measure the workflow the target describes. The true figure
-> for real agent work is **unmeasured**; a broader benchmark is needed to settle
-> it (see `docs/roadmap.md`). The ~13-14% result is neither a guaranteed floor nor
-> a prediction; broader workloads may show larger or smaller savings.
+> **Read this before the numbers.** These benchmarks count selected source-file
+> reading tokens, not whole agent workflows. UserCard shows ~13-14% savings;
+> a runnable multi-component support portal shows both savings and regressions.
+> The **60-80% full-workflow target is unverified**. Setup, discovery, edits,
+> reasoning and retries need actual paired agent recordings. These results
+> are neither guaranteed savings nor predictions for other applications.
 
 The numbers in the rest of this document are **hand estimates, pre-measurement**.
 Pattern-library and automatic-quality claims describe planned capabilities, not
@@ -34,18 +25,22 @@ using `gpt-tokenizer` with the **o200k_base** encoder. Savings =
 | Understand the component (read full source) | 542 | 627 | 13.6% |
 | Modify a style (read only the style file) | 254 | 293 | 13.3% |
 | Add a prop (read the files it touches) | 288 | 334 | 13.8% |
+| Read complete support portal | 3,918 | 3,768 | -4.0% |
+| Portal shared style | 1,042 | 1,042 | 0.0% |
+| Portal optional field | 1,035 | 959 | -7.9% |
+| Portal draft validation | 227 | 576 | 60.6% |
 
 Per file (o200k_base): ADX `manifest.json` 115, `structure.adx` 83,
 `behavior.adx.js` 90, `style.adx.css` 254; React `UserCard.tsx` 334,
 `UserCard.module.css` 293.
 
-**Honest reading of the result.** The measured ~13-14% is well below the
-hand-estimated headline "65-85% reduction" below. The equivalence rule forces a
-faithful *minimal* React single-component equivalent (one `.tsx` + one CSS
-module), so the gap is modest at single-component scale; the larger estimated
-gains assume the multi-file / multi-component React overhead this fixture does not
-exercise. The estimates below are retained for context but are explicitly **not**
-measurements.
+**Honest reading of the result.** Negative savings mean ADX costs more for the
+selected source. The support portal shares data/CSS and verifies equivalent
+static content and interactions with real React prerendering and hydration.
+Its complete read costs ADX more, while reading an isolated behavior file costs
+less than reading the full React detail component. File selection matters.
+The older estimates below are retained for context, not supported as general
+claims by these measurements. See the [methodology](../benchmark/README.md).
 
 ## Test Scenario
 
@@ -376,13 +371,10 @@ ADX is ideal for:
 ## Summary
 
 **Token Efficiency**: 60-80% reduction is the **design target** across a full
-agent workflow at real-world scale — a hypothesis, not yet proven. The only
-measurement so far (M2) is ~13-14% reduction vs. an equivalent React
-component on the single-component understand / modify-style / add-prop tasks
-(`npm run benchmark`), which measures only read-tokens on one small component and
-excludes ADX's strongest cases. That narrow result neither proves nor disproves
-the target; a broader benchmark (manifest-scan-only, full edit-and-explain,
-multi-component) is needed before any headline number is treated as settled.
+agent workflow at real-world scale — a hypothesis, not yet proven. Source-reading
+measurements cover UserCard and a runnable support portal, with portal results
+from -7.9% to 60.6% savings and a 4.0% regression on its complete read. Real
+paired workflow recordings remain necessary before claiming end-to-end savings.
 
 **Quality**: Equal or better (patterns + enforcement)
 

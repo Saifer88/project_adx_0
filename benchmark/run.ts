@@ -1,10 +1,8 @@
 /**
  * ADX token benchmark harness.
  *
- * Measures the token cost of reading an ADX component's source vs an equivalent
- * React implementation across three concrete agent tasks (understand /
- * modify-style / add-prop), using the pure-JS `gpt-tokenizer` with the GPT-4o
- * `o200k_base` encoder.
+ * Measures source-reading cost for equivalent UserCard and support-portal
+ * implementations, using the pure-JS `gpt-tokenizer` o200k_base encoder.
  *
  * The tokenizing + aggregation logic lives in the pure `measure()` function so
  * it can be unit-tested with in-memory strings and a stubbed encoder, with no
@@ -47,7 +45,7 @@ export interface TaskResult {
   label: string;
   adx: FrameworkResult;
   react: FrameworkResult;
-  /** (react - adx) / react, in [0,1] (0 when react is empty). */
+  /** (react - adx) / react; negative means ADX costs more (0 for empty React). */
   savings: number;
 }
 

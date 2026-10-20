@@ -1,5 +1,5 @@
 {
-  "description": "Token benchmark tasks: ADX source vs an equivalent React implementation of the same UserCard component. Each task names the file set an agent must READ to perform that operation. Paths are relative to the benchmark/ directory. Reproduce with `npm run benchmark`.",
+  "description": "Source-reading token tasks for equivalent UserCard and runnable support-portal fixtures. File sets are explicit scenario assumptions, not observed agent reads. Shared data, CSS, page definitions and build tooling are counted on both sides where selected. Paths are relative to benchmark/. Reproduce with `npm run benchmark`.",
   "encoder": "o200k_base",
   "workflowTasks": [
     {
@@ -16,6 +16,36 @@
       "id": "multi-instance",
       "prompt": "Build a page containing three UserCards with different names and a Follow action per card. Each action must emit only its own user's name.",
       "acceptance": ["All three names are present without JavaScript", "Each Follow action emits the matching name", "No console errors or missing assets", "The layout has no horizontal overflow at 390px"]
+    },
+    {
+      "id": "portal-locate",
+      "prompt": "In the support portal, identify the files that own ticket priority editing, draft validation and shared ticket-row spacing. Explain the save flow without changing files.",
+      "acceptance": ["Names the actual behavior/component and shared CSS files", "Explains whitespace validation, status feedback and reload reset", "Does not claim network or persistent storage", "No source changes"]
+    },
+    {
+      "id": "portal-style",
+      "prompt": "Change ticket-row vertical padding from 20px to 24px across the dashboard and queue. Preserve all content, navigation and draft behavior.",
+      "acceptance": ["Computed row padding is 24px on both list pages", "No horizontal overflow at 390px and 1280px", "Static content remains available without JavaScript", "Existing portal acceptance tests pass"]
+    },
+    {
+      "id": "portal-add-field",
+      "prompt": "Add an optional customer department field to ticket details, hidden when absent or empty. Show Finance on SUP-1042 and preserve every existing interaction.",
+      "acceptance": ["Finance is visible on SUP-1042 without JavaScript", "Absent or empty department adds no label or value", "HTML-like department values are escaped", "Existing portal acceptance tests pass"]
+    },
+    {
+      "id": "portal-add-page",
+      "prompt": "Add a resolved-tickets page at /resolved/ using the existing header, list and status components. Link it from primary navigation and show only resolved tickets from the shared data.",
+      "acceptance": ["Direct navigation to /resolved/ works without JavaScript", "Only SUP-1044 is listed", "Every ticket link reaches its existing detail page", "Current-page navigation is correct and there is no mobile overflow", "Existing portal acceptance tests pass"]
+    },
+    {
+      "id": "portal-validation",
+      "prompt": "Require a response draft to contain at least 20 non-whitespace characters before saving. Keep the entered text and chosen priority when validation fails; clear invalid state when the user edits again.",
+      "acceptance": ["Whitespace-only and 19-character trimmed responses fail", "A 20-character trimmed response saves", "Failed validation retains draft and priority", "Editing clears aria-invalid and allows retry", "Feedback is announced through the existing live status region"]
+    },
+    {
+      "id": "portal-from-brief",
+      "prompt": "Build a customer-support portal from a clean app using the supplied data.json and style.css. Provide overview metrics, a queue, all three ticket-detail routes, status badges, priority selection and editable response drafts with whitespace validation and local save feedback. Content must render without JavaScript. Drafts reset on reload; no backend or runtime list mutations are required.",
+      "acceptance": ["Shared portal browser acceptance tests pass for the chosen framework", "All five routes render complete content without JavaScript", "Priority, draft validation and keyboard save work", "HTML-like content remains escaped", "No runtime errors, missing assets or horizontal overflow"]
     }
   ],
   "tasks": [
@@ -48,6 +78,44 @@
         "adx/behavior.adx.js"
       ],
       "react": ["react/UserCard.tsx"]
+    },
+    {
+      "id": "portal-understand",
+      "label": "Read the complete support portal and shared build inputs",
+      "adx": [
+        "app/data.json", "app/pages.mjs", "app/style.css", "app/build.mjs",
+        "app/adx/header/manifest.json", "app/adx/header/structure.adx", "app/adx/header/behavior.adx.js", "app/adx/header/style.adx.css",
+        "app/adx/metrics/manifest.json", "app/adx/metrics/structure.adx", "app/adx/metrics/behavior.adx.js", "app/adx/metrics/style.adx.css",
+        "app/adx/status-badge/manifest.json", "app/adx/status-badge/structure.adx", "app/adx/status-badge/behavior.adx.js", "app/adx/status-badge/style.adx.css",
+        "app/adx/ticket-list/manifest.json", "app/adx/ticket-list/structure.adx", "app/adx/ticket-list/behavior.adx.js", "app/adx/ticket-list/style.adx.css",
+        "app/adx/ticket-detail/manifest.json", "app/adx/ticket-detail/structure.adx", "app/adx/ticket-detail/behavior.adx.js", "app/adx/ticket-detail/style.adx.css"
+      ],
+      "react": [
+        "app/data.json", "app/pages.mjs", "app/style.css", "app/build.mjs",
+        "app/react/App.jsx", "app/react/client.jsx", "app/react/Header.jsx", "app/react/Metrics.jsx",
+        "app/react/StatusBadge.jsx", "app/react/TicketList.jsx", "app/react/TicketDetail.jsx"
+      ]
+    },
+    {
+      "id": "portal-style",
+      "label": "Read the shared stylesheet for a cross-page style change",
+      "adx": ["app/style.css"],
+      "react": ["app/style.css"]
+    },
+    {
+      "id": "portal-add-field",
+      "label": "Read detail rendering and ticket data to add an optional field",
+      "adx": [
+        "app/data.json", "app/adx/ticket-detail/manifest.json",
+        "app/adx/ticket-detail/structure.adx", "app/adx/ticket-detail/behavior.adx.js"
+      ],
+      "react": ["app/data.json", "app/react/TicketDetail.jsx"]
+    },
+    {
+      "id": "portal-validation",
+      "label": "Read the response editor source for a validation change",
+      "adx": ["app/adx/ticket-detail/behavior.adx.js"],
+      "react": ["app/react/TicketDetail.jsx"]
     }
   ]
 }
