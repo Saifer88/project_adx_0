@@ -345,6 +345,47 @@ export const SCAFFOLD_FILES: { path: string; contents: string | (() => string) }
 ];
 
 /**
+ * Conflict-safe writer shared by every scaffolder (`adx init`, `adx create`,
+ * and `adx pattern`). The single home of the no-partial-write guard.
+ *
+ * REFUSES TO CLOBBER: resolves every path against `base` and, if ANY already
+ * exists, throws `[ADX] <abs> - already exists; refusing to overwrite` BEFORE
+ * creating any directory or writing any file — so a conflict leaves the target
+ * untouched. On success it `mkdir -p`s each parent and writes each file in
+ * order, returning the input relative paths in the same order.
+ *
+ * Callers resolve their templates (including any throwing thunks) into concrete
+ * strings BEFORE calling this, so a template that fails also writes nothing.
+ *
+ * @param base   Absolute base directory the relative paths resolve against.
+ * @param files  The `{ path, contents }` set to write, in output order.
+ * @returns the input relative paths, in order.
+ */
+export function writeFileSet(
+  base: string,
+  files: { path: string; contents: string }[],
+): string[] {
+  // 1. Clobber guard: fail before touching the filesystem if anything exists.
+  for (const file of files) {
+    const abs = resolve(base, file.path);
+    if (existsSync(abs)) {
+      throw new Error(
+        `[ADX] ${abs} - already exists; refusing to overwrite`,
+      );
+    }
+  }
+
+  // 2. Write every file; parents are created on demand.
+  for (const file of files) {
+    const abs = resolve(base, file.path);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, file.contents, "utf8");
+  }
+
+  return files.map((file) => file.path);
+}
+
+/**
  * Scaffold a new ADX starter project into `targetDir`.
  *
  * REFUSES TO CLOBBER: resolves every scaffold path first and, if ANY already
@@ -359,29 +400,13 @@ export const SCAFFOLD_FILES: { path: string; contents: string | (() => string) }
  * @returns the relative paths written, in scaffold order.
  */
 export function scaffoldProject(targetDir: string): string[] {
-  const base = resolve(targetDir);
-
-  // 1. Clobber guard: fail before touching the filesystem if anything exists.
-  for (const file of SCAFFOLD_FILES) {
-    const abs = resolve(base, file.path);
-    if (existsSync(abs)) {
-      throw new Error(
-        `[ADX] ${abs} - already exists; refusing to overwrite`,
-      );
-    }
-  }
-
-  // Resolve metadata before writing, so a broken installation leaves no files.
+  // Resolve every thunk into a concrete string BEFORE writing, so a broken
+  // installation (e.g. a throwing packageJson()) leaves nothing partially
+  // written. Thunk resolution must stay before the write loop in writeFileSet.
   const files = SCAFFOLD_FILES.map((file) => ({
     path: file.path,
     contents: typeof file.contents === "function" ? file.contents() : file.contents,
   }));
 
-  for (const file of files) {
-    const abs = resolve(base, file.path);
-    mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, file.contents, "utf8");
-  }
-
-  return SCAFFOLD_FILES.map((file) => file.path);
+  return writeFileSet(resolve(targetDir), files);
 }

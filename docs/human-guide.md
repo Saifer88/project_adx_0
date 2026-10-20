@@ -601,11 +601,12 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestones 1 and 2 ship the init/build/check/serve/tokens/help commands below; the rest are planned.
+Milestones 1 and 2 ship the init/create/build/check/serve/tokens/help commands below; the rest are planned.
 
 ```bash
 # Working today (M1 + M2)
 adx init [name]                                                       # scaffold a new starter project (./<name>, or the current dir)
+adx create <component-name>                                           # scaffold one new component into the current project
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
 adx build <page.json> [--out dist] [--tokens <path>] [--site <site.json>]  # compile a page (composes components); --site merges shared assets
 adx serve [dir] [--port 3000] [--host localhost]                      # preview a build locally (static server, does not compile)
@@ -616,10 +617,29 @@ adx help                                                              # show the
 npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
 
 # Planned
-adx create <name>      # Richer project templates
 adx dev                # Start dev server (hot reload)
 adx pattern <name>     # Generate pattern component
 ```
+
+### Add a component to an existing project
+
+`adx create <component-name>` drops one new four-file component into the current
+project (it does not scaffold a whole project — use `adx init` for that). The
+name is a lowercase, hyphenated slug (e.g. `widget-card`), which also becomes the
+component directory and a PascalCase manifest name (`WidgetCard`):
+
+```bash
+adx create widget-card   # writes widget-card/{manifest.json,structure.adx,behavior.adx.js,style.adx.css}
+adx check widget-card    # compiles clean with no --data (every prop has a default)
+```
+
+Every prop defaults, so the component builds and checks immediately, and the
+template already meets the token + WCAG-AA quality bar (semantic `<article>`, an
+`<h2>` title so it composes under a page's `<h1>`, and a token-sized touch
+target on the button). Like `adx init`, it refuses to overwrite: if any of the
+four files already exists it writes nothing and exits 1 with the `[ADX] … already
+exists; refusing to overwrite` error. An invalid name (uppercase, a path
+separator, `..`) is rejected with an `[ADX] … invalid component name` error.
 
 ### Start a new project
 

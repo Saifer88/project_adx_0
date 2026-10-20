@@ -134,6 +134,19 @@ Commit the generated npm lockfile so a clone can install the same dependency tre
 The generated agent instructions set concise chat defaults, application scope,
 and local CLI setup guidance; they do not require a separate Caveman installation.
 
+## Shipped — add one component (`adx create`) ✅
+
+`adx create <component-name>` scaffolds ONE new four-file component
+(`<name>/{manifest.json,structure.adx,behavior.adx.js,style.adx.css}`) into an
+existing project from a minimal, valid, token-using, WCAG-AA template whose props
+all default — so `adx build <name>` and `adx check <name>` succeed with no
+`--data`. The name is a lowercase, hyphenated slug (also the directory name and,
+PascalCased, the manifest name); an invalid name is rejected with an `[ADX] …
+invalid component name` error. Like `adx init`, it refuses to overwrite: if any
+of the four files already exists it writes nothing and exits 1 with the `[ADX] …
+already exists; refusing to overwrite` error. The one conflict-safe writer
+(`writeFileSet`) now backs both `init` and `create`.
+
 ## Shipped — first-class external design-library assets (pages) ✅
 
 Pages can reference external CSS/JS (Tailwind or any design library) via an
@@ -159,8 +172,8 @@ the compiler — never; per-component or standalone-build assets — out of scop
 
 ## Later milestones (unscheduled)
 Pattern library, dev server + hot reload, richer `adx create`/`pattern` CLI
-(beyond the shipped `adx init` scaffolder and `adx tokens` token listing),
-compile-time WCAG-AA audit,
+(beyond the shipped `adx init` scaffolder, `adx create` component scaffolder, and
+`adx tokens` token listing), compile-time WCAG-AA audit,
 sitemap.xml/robots.txt generation, bundle-size budgets, VS Code extension,
 browser devtools. See the README roadmap table.
 

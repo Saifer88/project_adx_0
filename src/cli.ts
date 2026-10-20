@@ -21,6 +21,14 @@
  *       nothing on conflict), prints what it created plus the next steps, and
  *       exits 0 on success / 1 on error, like `build`/`check`.
  *
+ *   adx create <component-name>
+ *       Scaffolds ONE new four-file component (`<name>/{manifest.json,
+ *       structure.adx,behavior.adx.js,style.adx.css}`) into the current project
+ *       from a minimal, valid, token-using, WCAG-AA template whose props all
+ *       default (so `adx build <name>` succeeds with no `--data`). One-shot: it
+ *       validates the name, refuses to overwrite (writing nothing on conflict),
+ *       prints each created path, and exits 0 on success / 1 on error.
+ *
  *   adx serve [dir] [--port 3000] [--host localhost]
  *       Static file server for already-compiled output; it does NOT compile.
  *       `dir` defaults to `dist`. Serves HTML/CSS/JS ES modules over HTTP so you
@@ -66,6 +74,7 @@ import {
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
 import { scaffoldProject } from "./scaffold.js";
+import { scaffoldComponent } from "./create.js";
 import { loadTokens } from "./tokens/load.js";
 import type { ComponentAsset } from "./codegen/glue.js";
 
@@ -162,6 +171,10 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   {
     invocation: "adx init [name]",
     description: "Scaffold an npm-ready starter into ./<name> (or CWD).",
+  },
+  {
+    invocation: "adx create <component-name>",
+    description: "Scaffold one new component into the current project.",
   },
   {
     invocation:
@@ -527,6 +540,25 @@ function runInit(args: ParsedArgs): number {
   return 0;
 }
 
+/**
+ * Scaffold one new component into the current project (`adx create
+ * <component-name>`). One-shot, mirroring `runInit`: `create` reuses the
+ * existing `dir` positional as the component name, so no parser change is
+ * needed. A missing name is a usage error to stderr (exit 1); otherwise it
+ * writes the four files via `scaffoldComponent` (which validates the name and
+ * refuses to overwrite, throwing an `[ADX]` error that `run()` turns into
+ * stderr + exit 1), prints each created relative path to stdout, and returns 0.
+ */
+function runCreate(args: ParsedArgs): number {
+  if (!args.dir) {
+    process.stderr.write(`[ADX] missing <component-name>\n${usage()}\n`);
+    return 1;
+  }
+  const created = scaffoldComponent(args.dir);
+  process.stdout.write(created.join("\n") + "\n");
+  return 0;
+}
+
 function run(args: ParsedArgs): number {
   // `help` is an explicit request: full help to STDOUT, exit 0 (not an error).
   if (args.command === "help") {
@@ -542,7 +574,8 @@ function run(args: ParsedArgs): number {
   if (
     args.command !== "build" &&
     args.command !== "check" &&
-    args.command !== "init"
+    args.command !== "init" &&
+    args.command !== "create"
   ) {
     // Bare `adx` and any unknown command: short usage to STDERR, exit 1
     // (RECOMMENDED — a missing/unknown command is an error, so stderr + nonzero;
@@ -551,10 +584,11 @@ function run(args: ParsedArgs): number {
     return 1;
   }
 
-  // `init` takes an OPTIONAL positional (name); it never requires `dir`.
-  if (args.command === "init") {
+  // `init` takes an OPTIONAL positional (name); `create` takes a REQUIRED one.
+  // Both turn an `[ADX]` throw (clobber/invalid name) into stderr + exit 1.
+  if (args.command === "init" || args.command === "create") {
     try {
-      return runInit(args);
+      return args.command === "init" ? runInit(args) : runCreate(args);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       process.stderr.write(message + "\n");

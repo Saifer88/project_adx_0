@@ -135,6 +135,7 @@ grows. Edit source files, check, build, and refresh the preview.
 | Command | Purpose |
 | :--- | :--- |
 | `adx init [name]` | Create an npm-ready starter with a pinned local ADX dependency; never overwrites scaffold files. |
+| `adx create <component-name>` | Scaffold one new four-file component into the current project; never overwrites. |
 | `adx check <componentDir\|page.json>` | Validate in memory; exits 0 on success or 1 with an `[ADX]` error. |
 | `adx build <componentDir\|page.json>` | Generate static HTML, scoped CSS, and hydration JavaScript. |
 | `adx serve [dir]` | Preview compiled output; defaults to `dist`. No compilation or hot reload. |

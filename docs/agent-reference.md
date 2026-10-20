@@ -352,6 +352,7 @@ adx build <page.json> [--out dist] [--tokens <path>] [--site <site.json>]  # pag
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component in-memory
 adx check <page.json> [--tokens <path>] [--site <site.json>]          # validate every page instance
 adx init [name]                                                       # scaffold a starter project (./<name> or CWD)
+adx create <component-name>                                           # scaffold one new component into the current project
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 adx tokens [--tokens <path>]                                          # list all design tokens, grouped by category
 adx help                                                              # print the full command listing (stdout, exit 0)

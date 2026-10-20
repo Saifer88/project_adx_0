@@ -117,7 +117,7 @@ describe("adx help", () => {
 
     expect(code).toBe(0);
     const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
-    for (const name of ["init", "build", "check", "serve", "tokens", "help"]) {
+    for (const name of ["init", "create", "build", "check", "serve", "tokens", "help"]) {
       expect(printed).toContain(`adx ${name}`);
     }
     expect(stderr).not.toHaveBeenCalled();
