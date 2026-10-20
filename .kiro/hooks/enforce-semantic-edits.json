@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Enforce Semantic In-Place Edits",
+      "trigger": "PreToolUse",
+      "description": "Before any full-file write, enforce program analysis and language-server-driven, targeted in-place replacements instead of rewriting whole files.",
+      "matcher": "fs_write",
+      "action": {
+        "type": "agent",
+        "prompt": "STRICT EDITING POLICY — read before writing this file.\n\nYou are about to perform a full-file write (fs_write). This is only permitted for creating a NEW file. For modifying an EXISTING file, full-file rewrites are prohibited.\n\nRequired behavior:\n1. Analyze the program before editing. Read the relevant file(s) and understand the symbols, scope, and references involved.\n2. Prefer the workspace language server for structural changes:\n   - Use semantic_rename for renaming any symbol (variable, function, class, parameter) so all references update consistently.\n   - Use smart_relocate for moving/renaming files so imports and references update automatically.\n3. For content changes to an existing file, use str_replace for targeted in-place replacements (or fs_append to add to the end). Match the minimal surrounding context needed to disambiguate — do not restate unchanged regions.\n4. Reserve fs_write strictly for brand-new files, or for a case where a targeted edit is genuinely impossible; if you must use it on an existing file, state explicitly why a targeted edit could not be used.\n\nIf you were about to rewrite an existing file wholesale, stop and redo the change as one or more targeted str_replace / semantic_rename / smart_relocate operations instead."
+      }
+    }
+  ]
+}
