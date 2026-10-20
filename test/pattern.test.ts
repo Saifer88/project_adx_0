@@ -49,12 +49,12 @@ describe("pattern catalog compiles (data-driven, no --data)", () => {
     it(`scaffolds and compiles the "${name}" pattern with no --data`, () => {
       const written = scaffoldPattern(PATTERNS[name], join(dir, name));
       expect(written).toEqual([
-        `${name}/manifest.json`,
-        `${name}/structure.adx`,
-        `${name}/behavior.adx.js`,
-        `${name}/style.adx.css`,
+        "manifest.json",
+        "structure.adx",
+        "behavior.adx.js",
+        "style.adx.css",
       ]);
-      const compDir = join(dir, name, name);
+      const compDir = join(dir, name);
 
       // AC1: check never throws with no --data.
       expect(() =>
@@ -75,7 +75,7 @@ describe("pattern catalog compiles (data-driven, no --data)", () => {
   for (const name of ["form", "modal"]) {
     it(`${name}'s control carries a token-sized touch target (min-height)`, () => {
       scaffoldPattern(PATTERNS[name], join(dir, name));
-      const result = compileComponent(join(dir, name, name), {
+      const result = compileComponent(join(dir, name), {
         tokensPath: repoTokensPath,
       });
       expect(result.css).toContain("min-height");
@@ -85,7 +85,7 @@ describe("pattern catalog compiles (data-driven, no --data)", () => {
   // AC2: each pattern's required a11y semantics are present in the HTML.
   it("form renders label/for, aria-describedby, submit button, and a live error region", () => {
     scaffoldPattern(PATTERNS.form, join(dir, "form"));
-    const result = compileComponent(join(dir, "form", "form"), {
+    const result = compileComponent(join(dir, "form"), {
       tokensPath: repoTokensPath,
     });
     expect(result.html).toContain("<label");
@@ -98,7 +98,7 @@ describe("pattern catalog compiles (data-driven, no --data)", () => {
 
   it("modal renders dialog role, aria-modal, aria-labelledby, and a close button", () => {
     scaffoldPattern(PATTERNS.modal, join(dir, "modal"));
-    const result = compileComponent(join(dir, "modal", "modal"), {
+    const result = compileComponent(join(dir, "modal"), {
       tokensPath: repoTokensPath,
     });
     expect(result.html).toContain('role="dialog"');
@@ -109,7 +109,7 @@ describe("pattern catalog compiles (data-driven, no --data)", () => {
 
   it("table renders a caption and scoped column headers", () => {
     scaffoldPattern(PATTERNS.table, join(dir, "table"));
-    const result = compileComponent(join(dir, "table", "table"), {
+    const result = compileComponent(join(dir, "table"), {
       tokensPath: repoTokensPath,
     });
     expect(result.html).toContain("<caption");
@@ -123,7 +123,7 @@ describe("pattern catalog compiles (data-driven, no --data)", () => {
   // computedText update is retained and getNameError is imported into the glue.
   it("form retains a computedText(get: getNameError) update (not frozen)", () => {
     scaffoldPattern(PATTERNS.form, join(dir, "form"));
-    const result = compileComponent(join(dir, "form", "form"), {
+    const result = compileComponent(join(dir, "form"), {
       tokensPath: repoTokensPath,
     });
     expect(result.glue).toContain('"kind": "computedText"');
@@ -193,20 +193,20 @@ describe("adx pattern CLI", () => {
       rmSync(dir, { recursive: true, force: true });
     });
 
-    it("scaffolds a named pattern into targetDir and exits 0", () => {
-      // The entry's files are paths under `<name>/`, so they land beneath the
-      // chosen targetDir (here `ui/contact/form/...`).
+    it("scaffolds a named pattern flat into targetDir and exits 0", () => {
+      // The component lands exactly in the chosen targetDir (here `ui/contact/`),
+      // flat — four files, no extra `<name>/` nesting (matches `adx create`).
       const code = run(argsFor({ command: "pattern", dir: "form", dir2: "ui/contact" }));
       expect(code).toBe(0);
-      expect(existsSync(join(dir, "ui", "contact", "form", "manifest.json"))).toBe(true);
+      expect(existsSync(join(dir, "ui", "contact", "manifest.json"))).toBe(true);
       const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
-      expect(printed).toContain("form/manifest.json");
+      expect(printed).toContain("manifest.json");
     });
 
     it("defaults the targetDir to the pattern name", () => {
       const code = run(argsFor({ command: "pattern", dir: "modal" }));
       expect(code).toBe(0);
-      expect(existsSync(join(dir, "modal", "modal", "manifest.json"))).toBe(true);
+      expect(existsSync(join(dir, "modal", "manifest.json"))).toBe(true);
     });
 
     it("refuses to overwrite a conflicting file and exits 1 (writes nothing)", () => {

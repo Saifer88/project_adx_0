@@ -628,8 +628,10 @@ Run `adx pattern` (or `adx pattern --list`) to see the catalog: `form`, `table`,
 and `modal`. Each scaffolds four `.adx` files that build and check with no
 `--data`, use design tokens only, and carry the accessibility baseline (form
 labels + a live error region, a dialog role + accessible name, scoped table
-headers + caption). Files land under `<targetDir>/<name>/`; `targetDir` defaults
-to the pattern name. Like `adx init`/`adx create`, it refuses to overwrite and
+headers + caption). The four files land flat in `targetDir`, which defaults to
+the pattern name — so `adx pattern form` creates `./form/` and `adx pattern form
+ui/contact-form` creates `./ui/contact-form/`, just like `adx create`. Like
+`adx init`/`adx create`, it refuses to overwrite and
 writes nothing on conflict. One honest caveat: the `modal` pattern ships correct
 static dialog semantics plus an `onClose` that emits `close`, but `:if`-driven
 open/close toggling is not a runtime behavior in this release — a host decides

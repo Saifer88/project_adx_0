@@ -25,7 +25,7 @@ import { resolve } from "node:path";
 import { writeFileSet } from "./scaffold.js";
 
 /** One catalog entry: a name, a one-line description, and its four `.adx`
- * files (paths under `<name>/`). */
+ * files (flat, relative to the target dir — no `<name>/` prefix). */
 export interface PatternEntry {
   name: string;
   description: string;
@@ -51,7 +51,7 @@ const FORM: PatternEntry = {
   description: "Accessible form with labelled input, hint, and a live error region.",
   files: [
     {
-      path: "form/manifest.json",
+      path: "manifest.json",
       contents: `{
   "name": "Form",
   "version": "1.0.0",
@@ -67,7 +67,7 @@ const FORM: PatternEntry = {
 `,
     },
     {
-      path: "form/structure.adx",
+      path: "structure.adx",
       contents: `<form .form @submit="onSubmit">
   <label .label for="form-name">{{label}}</label>
   <p .hint id="form-name-hint">{{hint}}</p>
@@ -78,7 +78,7 @@ const FORM: PatternEntry = {
 `,
     },
     {
-      path: "form/behavior.adx.js",
+      path: "behavior.adx.js",
       contents: `export function setup(props) {
   return {
     label: props.label,
@@ -106,7 +106,7 @@ export function onSubmit(state, event) {
 `,
     },
     {
-      path: "form/style.adx.css",
+      path: "style.adx.css",
       contents: `@use tokens;
 
 .form {
@@ -190,7 +190,7 @@ const TABLE: PatternEntry = {
   description: "Accessible data table with a caption and scoped column headers.",
   files: [
     {
-      path: "table/manifest.json",
+      path: "manifest.json",
       contents: `{
   "name": "Table",
   "version": "1.0.0",
@@ -210,7 +210,7 @@ const TABLE: PatternEntry = {
 `,
     },
     {
-      path: "table/structure.adx",
+      path: "structure.adx",
       contents: `<table .table>
   <caption .caption>{{caption}}</caption>
   <thead>
@@ -229,7 +229,7 @@ const TABLE: PatternEntry = {
 `,
     },
     {
-      path: "table/behavior.adx.js",
+      path: "behavior.adx.js",
       contents: `export function setup(props) {
   return {
     caption: props.caption,
@@ -239,7 +239,7 @@ const TABLE: PatternEntry = {
 `,
     },
     {
-      path: "table/style.adx.css",
+      path: "style.adx.css",
       contents: `@use tokens;
 
 .table {
@@ -284,7 +284,7 @@ const MODAL: PatternEntry = {
   description: "Accessible dialog with a labelled title and a keyboard close button.",
   files: [
     {
-      path: "modal/manifest.json",
+      path: "manifest.json",
       contents: `{
   "name": "Modal",
   "version": "1.0.0",
@@ -299,7 +299,7 @@ const MODAL: PatternEntry = {
 `,
     },
     {
-      path: "modal/structure.adx",
+      path: "structure.adx",
       contents: `<div .modal role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <h2 .title id="modal-title">{{title}}</h2>
   <p .message>{{message}}</p>
@@ -308,7 +308,7 @@ const MODAL: PatternEntry = {
 `,
     },
     {
-      path: "modal/behavior.adx.js",
+      path: "behavior.adx.js",
       contents: `export function setup(props) {
   return {
     title: props.title,
@@ -323,7 +323,7 @@ export function onClose(state) {
 `,
     },
     {
-      path: "modal/style.adx.css",
+      path: "style.adx.css",
       contents: `@use tokens;
 
 .modal {
@@ -389,9 +389,11 @@ export const PATTERNS: Record<string, PatternEntry> = {
 };
 
 /**
- * Scaffold a pattern's four files into `targetDir` via the shared conflict-safe
- * {@link writeFileSet}: if any file already exists it writes nothing and throws
- * the `[ADX] … already exists; refusing to overwrite` error.
+ * Scaffold a pattern's four files flat into `targetDir` via the shared
+ * conflict-safe {@link writeFileSet}: the component lands exactly in
+ * `targetDir` (e.g. `adx pattern form` -> `./form/{4 files}`), matching `adx
+ * create`. If any file already exists it writes nothing and throws the
+ * `[ADX] … already exists; refusing to overwrite` error.
  *
  * @returns the relative paths written, in order.
  */

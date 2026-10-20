@@ -11,9 +11,11 @@ supported syntax and the [roadmap](./roadmap.md) for planned work.
 ## Shipped patterns
 
 Scaffold with `adx pattern <name>` (run `adx pattern --list` for the catalog).
-Each drops a four-file component under `<targetDir>/<name>/` (`targetDir` defaults
-to the name) that builds and checks with no `--data`, uses design tokens only,
-and meets the accessibility baseline. These use ONLY supported ADX syntax
+Each drops a flat four-file component into `targetDir` (`targetDir` defaults to
+the pattern name) — so `adx pattern form` creates `./form/` and `adx pattern
+form ui/contact-form` creates `./ui/contact-form/`, matching `adx create`. Every
+pattern builds and checks with no `--data`, uses design tokens only, and meets
+the accessibility baseline. These use ONLY supported ADX syntax
 (`.class`, `:prop`, `@event`, `{{interp}}`, `:if`/`:for`).
 
 **form** — a semantic form with a labelled input, hint, and a live error region.

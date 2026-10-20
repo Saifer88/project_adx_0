@@ -359,8 +359,9 @@ adx tokens [--tokens <path>]                                          # list all
 adx help                                                              # print the full command listing (stdout, exit 0)
 ```
 
-`adx pattern` catalog (each scaffolds a four-file, build-clean, no-`--data`
-component under `<targetDir>/<name>/`; `targetDir` defaults to `<name>`):
+`adx pattern` catalog (each scaffolds a flat four-file, build-clean, no-`--data`
+component into `targetDir`; `targetDir` defaults to `<name>`, so `adx pattern
+form` -> `./form/` and `adx pattern form ui/contact-form` -> `./ui/contact-form/`):
 
 - `form` — semantic `<form @submit>` with `<label for>`+`<input id>`, hint text,
   and an `aria-live="polite"` error region whose text is a computed
