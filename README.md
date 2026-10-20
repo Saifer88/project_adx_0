@@ -194,6 +194,7 @@ choosing ADX for your frontend.
 | Typed props, defaults, composition, and slots | Framework pattern library and lifecycle execution |
 | Per-instance text/attribute updates, incl. single bare computed values | Runtime structural reactivity and computed member chains/mixed templates |
 | External CSS/JS assets (Tailwind etc.) via page `assets` + `--site` | Asset replace-semantics and site-config auto-discovery |
+| `sitemap.xml` + `robots.txt` on a site `baseUrl` (per build) | Multi-page sitemaps, `lastmod`/`priority`, sitemap index files |
 
 `:if`/`:for` are build-time only; a single bare computed reference
 (`{{displayName}}`, `:title="displayName"`) live-patches on handler return while

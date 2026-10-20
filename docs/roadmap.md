@@ -192,11 +192,27 @@ not built, concat+dedupe only; **site-config auto-discovery** (implicit `site.js
 lookup) — not built, explicit `--site` only; running Tailwind/any toolchain from
 the compiler — never; per-component or standalone-build assets — out of scope.
 
+## Shipped — sitemap.xml + robots.txt (site `baseUrl`) ✅
+
+A page build with a site-config `baseUrl` (an absolute `http(s)` origin,
+validated like `lang`) emits `sitemap.xml` (sitemaps 0.9, one XML-escaped `<loc>`
+per compiled page — root slug → `<baseUrl>/`, else `<baseUrl>/<slug>/`, the clean
+path derived from the **slug** not `canonical`) and allow-all `robots.txt`
+(`User-agent: *` / `Allow: /` / `Sitemap: <baseUrl>/sitemap.xml`) into the
+top-level `--out` root. Trailing slashes on `baseUrl` are normalized once so both
+files agree and never double-slash. Both are build-time static text (no runtime
+JS, SEO-safe). With no `baseUrl` (or no `--site`) neither file is written, no
+error is raised, and page output is byte-for-byte unchanged; `check` never writes.
+
+Future: multi-page sitemaps from a site-level manifest (today one build emits its
+one page), `lastmod`/`changefreq`/`priority` fields, and sitemap index files —
+not built.
+
 ## Later milestones (unscheduled)
 A broader pattern library and richer `adx create`/`pattern` templates (beyond the
 shipped `adx init` scaffolder, `adx create` component scaffolder, `adx pattern`
 form/table/modal catalog, and `adx tokens` token listing), dev server + hot
-reload, compile-time WCAG-AA audit, sitemap.xml/robots.txt generation,
+reload, compile-time WCAG-AA audit,
 bundle-size budgets, VS Code extension, browser devtools. See the README roadmap
 table.
 

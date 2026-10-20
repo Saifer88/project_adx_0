@@ -51,6 +51,13 @@ export interface SiteConfig {
   assets?: PageAssets;
   /** Default `<html lang>` when a page did not explicitly set `lang`. */
   lang?: string;
+  /**
+   * Absolute `http(s)` origin for the site, e.g. `https://example.com`. When
+   * set, a page build emits `sitemap.xml` + `robots.txt` into the output root;
+   * when absent, neither file is generated and page output is unchanged. The
+   * raw value is stored verbatim (trailing slashes normalized only at emit).
+   */
+  baseUrl?: string;
 }
 
 /** One component instance placed on a page, in DOM order within `<main>`. */

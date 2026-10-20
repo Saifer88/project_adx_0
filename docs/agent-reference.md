@@ -550,6 +550,31 @@ Rebuild both outputs after edits. ADX never runs Tailwind; **do not inject the
 Play CDN runtime into components**. See [setup/troubleshooting](./human-guide.md#using-tailwind-or-any-css-library-with-adx)
 and [asset schema/errors](./adx-grammar.md#12-pagesite-assets-schema-json-not-adx).
 
+### Sitemap + robots (site `baseUrl`)
+
+Add an optional `baseUrl` to `site.json` — an absolute `http(s)` origin — and a
+page build emits `sitemap.xml` + `robots.txt` into the **top-level** `--out`
+root (regardless of the page's slug sub-dir). With no `baseUrl` (or no `--site`)
+neither file is generated and page output is byte-for-byte unchanged.
+
+```json
+{ "baseUrl": "https://example.com", "assets": { "css": ["/tailwind.css"] } }
+```
+
+- Validation: `baseUrl` must be a non-empty string parseable by `new URL(...)`
+  with a host and an `http:`/`https:` scheme — else
+  `[ADX] <site> - Field "baseUrl" must be a non-empty string` /
+  `[ADX] <site> - invalid baseUrl` /
+  `[ADX] <site> - invalid baseUrl (must be an absolute http(s) origin)`.
+- `sitemap.xml`: sitemaps 0.9 (`xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"`),
+  one XML-escaped `<loc>` per compiled page — root slug → `<baseUrl>/`, else
+  `<baseUrl>/<slug>/`. The clean path is derived from the **slug**, never from
+  the author-overridable `canonical`.
+- `robots.txt`: `User-agent: *` / `Allow: /` / `Sitemap: <baseUrl>/sitemap.xml`.
+- Trailing slashes on `baseUrl` are normalized once (shared by both files), so
+  `https://example.com` and `https://example.com/` produce identical URLs.
+- Build-time + static: no runtime JS, SEO-safe. `check` never writes either file.
+
 ## Composition
 
 Resolve a custom tag against the using component's `manifest.deps`; pass props

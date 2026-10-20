@@ -329,6 +329,32 @@ This fits the SEO/static contract deliberately:
   **asset reachability is not validated** — the compiler references the files, it
   does not fetch, read, or bundle them, and the author runs any toolchain.
 
+### Crawl infrastructure: sitemap.xml + robots.txt (pages only)
+
+SEO is a first-class goal, so a page build with a site-config `baseUrl` (an
+absolute `http(s)` origin, validated like `lang`) emits two crawl files into the
+build output root: a sitemaps-0.9 `sitemap.xml` with one XML-escaped `<loc>` per
+compiled page, and an allow-all `robots.txt` carrying an absolute `Sitemap:`
+line. The pure builders live in `src/page/crawl.ts` (`buildSitemap`,
+`buildRobots`, `normalizeBase`, `escapeXml`, `cleanPathForSlug`); `compilePage`
+surfaces the site's `baseUrl` on `CompiledPage` (reusing the one site load), and
+the CLI's `runPage` calls the single I/O seam `emitCrawlFiles` on the build path
+only.
+
+This holds the static/SEO contract:
+
+- **Build-time + static** — both files are plain text written at compile time;
+  they add no runtime JavaScript and need none to be read by a crawler.
+- **Slug-derived URLs** — the clean path (root slug → `<baseUrl>/`, else
+  `<baseUrl>/<slug>/`) comes from the page slug, mirroring the output-path rule,
+  **never** the author-overridable `canonical`, so the sitemap always matches
+  what was written.
+- **Single normalization** — one shared trailing-slash rule joins base + path,
+  so both files agree and never emit a double slash.
+- **Opt-in and side-effect-free when off** — no `baseUrl` (or no `--site`) means
+  neither file is written, no error is raised, and page output is byte-for-byte
+  unchanged. `check` never writes either file.
+
 ### Build-time execution of `setup()` (Trusted Code)
 
 To emit real content, `build` and `check` execute `setup()` and referenced

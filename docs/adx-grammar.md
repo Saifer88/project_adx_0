@@ -386,7 +386,9 @@ on each instance root and emits instance-scoped three-part hook ids
 Page manifests and the `--site` site config are JSON, not `.adx` structure, but
 their `assets` schema is specified here so the grammar/reference pair stays in
 sync (per the documentation rule). Both accept the same optional `assets` object;
-the site config additionally accepts an optional site-wide `lang` string.
+the site config additionally accepts an optional site-wide `lang` string and an
+optional `baseUrl` (absolute `http(s)` origin) that turns on sitemap/robots
+generation.
 
 ```
 assets      := { css?: string[], js?: (string | JsScript)[], head?: string[] }   // unknown keys ignored
@@ -418,7 +420,19 @@ Exact error strings (`[ADX] <file> - <msg>`; file is the page/site path):
 - `"assets.head" must be an array of strings`
 
 Site-only: `Cannot read site config`, `Invalid JSON`, `Site config must be an
-object`, `Field "lang" must be a string`.
+object`, `Field "lang" must be a string`, `Field "baseUrl" must be a non-empty
+string`, `invalid baseUrl`, `invalid baseUrl (must be an absolute http(s)
+origin)`.
+
+Site-only `baseUrl` (optional): a non-empty string parseable by `new URL(...)`
+with a host and an `http:`/`https:` scheme. When set, a page build emits
+`sitemap.xml` (sitemaps 0.9, one XML-escaped `<loc>` per compiled page — root
+slug → `<baseUrl>/`, else `<baseUrl>/<slug>/`, the clean path derived from the
+**slug** not `canonical`) and allow-all `robots.txt` (`User-agent: *` / `Allow:
+/` / `Sitemap: <baseUrl>/sitemap.xml`) into the top-level `--out` root. Trailing
+slashes on `baseUrl` are normalized once so both files agree. Absent `baseUrl`
+(or no `--site`) → neither file; page output byte-for-byte unchanged; `check`
+never writes.
 
 Merge (`--site`) is concat-then-dedupe: site base + page appended; `css`/`js`
 deduped first-wins (js by `src`), `head` not deduped. Token `style.css` is

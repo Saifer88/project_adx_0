@@ -56,5 +56,30 @@ export function parseSite(raw: string, file: string): SiteConfig {
     config.lang = obj.lang;
   }
 
+  if (obj.baseUrl !== undefined) {
+    if (typeof obj.baseUrl !== "string" || obj.baseUrl.length === 0) {
+      throw adxFileError(file, `Field "baseUrl" must be a non-empty string`);
+    }
+    // An absolute http(s) origin only: a relative/path-only value, a missing
+    // host, or a non-web scheme (ftp:, mailto:) is rejected. The raw value is
+    // stored verbatim; trailing slashes are normalized only at emit time.
+    let parsed: URL;
+    try {
+      parsed = new URL(obj.baseUrl);
+    } catch {
+      throw adxFileError(file, "invalid baseUrl");
+    }
+    if (
+      parsed.host.length === 0 ||
+      (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+    ) {
+      throw adxFileError(
+        file,
+        "invalid baseUrl (must be an absolute http(s) origin)",
+      );
+    }
+    config.baseUrl = obj.baseUrl;
+  }
+
   return config;
 }

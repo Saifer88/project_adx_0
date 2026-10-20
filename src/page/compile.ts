@@ -53,6 +53,13 @@ export interface CompiledPage {
   glue: string;
   /** One asset per DISTINCT component used on the page. */
   components: PageComponentAsset[];
+  /**
+   * The site config's absolute `baseUrl` when `--site` was passed and set one;
+   * `undefined` otherwise. When present, the CLI emits `sitemap.xml` +
+   * `robots.txt` into the build output root. The sitemap's clean path is
+   * derived from the SLUG on `page`, never from `page.canonical`.
+   */
+  baseUrl?: string;
 }
 
 /**
@@ -152,7 +159,10 @@ export function compilePage(
     mergedAssets,
   );
 
-  return { page, html, css, glue, components };
+  // Surface the site's baseUrl (if any) so the CLI can emit crawl files. The
+  // `site` above is the single load; no second read. A build with no --site (or
+  // a site without baseUrl) leaves this undefined, so nothing is generated.
+  return { page, html, css, glue, components, baseUrl: site?.baseUrl };
 }
 
 /**

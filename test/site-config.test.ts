@@ -30,10 +30,21 @@ describe("parseSite — valid configs", () => {
     expect(s.lang).toBe("fr");
   });
 
-  it("omits assets/lang when absent", () => {
+  it("omits assets/lang/baseUrl when absent", () => {
     const s = parse({});
     expect(s.assets).toBeUndefined();
     expect(s.lang).toBeUndefined();
+    expect(s.baseUrl).toBeUndefined();
+  });
+
+  it("surfaces a valid https:// and http:// baseUrl verbatim", () => {
+    expect(parse({ baseUrl: "https://example.com" }).baseUrl).toBe(
+      "https://example.com",
+    );
+    // trailing slash is stored verbatim; normalization happens only at emit.
+    expect(parse({ baseUrl: "http://example.com/" }).baseUrl).toBe(
+      "http://example.com/",
+    );
   });
 });
 
@@ -54,6 +65,34 @@ describe("parseSite — error table (exact strings, site file label)", () => {
     expect(() => parse({ lang: 42 })).toThrow(
       `[ADX] ${FILE} - Field "lang" must be a string`,
     );
+  });
+
+  it('Field "baseUrl" must be a non-empty string (non-string / empty)', () => {
+    expect(() => parse({ baseUrl: 42 })).toThrow(
+      `[ADX] ${FILE} - Field "baseUrl" must be a non-empty string`,
+    );
+    expect(() => parse({ baseUrl: "" })).toThrow(
+      `[ADX] ${FILE} - Field "baseUrl" must be a non-empty string`,
+    );
+  });
+
+  it("invalid baseUrl: an unparseable relative/path-only value rejects", () => {
+    // A value `new URL()` cannot parse (no scheme) -> the base `invalid baseUrl`.
+    for (const bad of ["example.com", "/about", "./rel"]) {
+      expect(() => parse({ baseUrl: bad })).toThrow(
+        `[ADX] ${FILE} - invalid baseUrl`,
+      );
+    }
+  });
+
+  it("invalid baseUrl: a parseable non-web scheme rejects (host/scheme guard)", () => {
+    // Parseable URLs that are not an absolute http(s) origin (wrong scheme, or
+    // no host) -> the absolute-origin message.
+    for (const bad of ["ftp://example.com", "mailto:a@b"]) {
+      expect(() => parse({ baseUrl: bad })).toThrow(
+        `[ADX] ${FILE} - invalid baseUrl (must be an absolute http(s) origin)`,
+      );
+    }
   });
 
   it("surfaces assets errors with the site file label", () => {

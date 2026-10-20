@@ -755,6 +755,29 @@ markup — `<h2>Ada Lovelace</h2>`, no `{{name}}` placeholder left for the brows
 to fill in. That's the SEO contract working: a crawler that never runs JavaScript
 still sees the whole component.
 
+### Sitemap and robots.txt
+
+To help crawlers discover your pages, add a `baseUrl` to `site.json` — your
+site's absolute origin, e.g. `https://example.com` — and pass `--site site.json`
+to `adx build`. Each page build then writes a `sitemap.xml` and an allow-all
+`robots.txt` into the top of your output folder:
+
+```json
+{ "baseUrl": "https://example.com" }
+```
+
+```bash
+adx build index.json --out dist --site site.json
+# dist/sitemap.xml  +  dist/robots.txt
+```
+
+The sitemap lists each page's clean URL (your root page as `https://example.com/`,
+a page with slug `about` as `https://example.com/about/`), and `robots.txt`
+points crawlers at it. The URL comes from the page's slug, so it always matches
+where the page is written. A trailing slash on `baseUrl` is fine — it is
+normalized. Leave `baseUrl` out (or drop `--site`) and neither file is written
+and your page output is unchanged. `adx check` never writes these files.
+
 ### A small 2-page site from composed components
 
 M2 can build a whole site, not just one component. The shape: a shared

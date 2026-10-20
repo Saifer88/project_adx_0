@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,6 +15,7 @@ import {
   wrapPageDocument,
   mergeAssets,
 } from "../src/page/compile.js";
+import { run } from "../src/cli.js";
 import type { PageManifest } from "../src/page/types.js";
 import { fixtureDir, siteDir, tokensPath } from "./helpers.js";
 
@@ -414,6 +422,110 @@ describe("compilePage — assets-free pages are byte-for-byte unchanged (stored 
     expect(compilePage(join(siteDir, "about.json"), opts).html).toBe(
       EXPECTED_ABOUT_HTML,
     );
+  });
+});
+
+describe("runPage — sitemap.xml + robots.txt generation (FEAT-004)", () => {
+  /** A fully-populated ParsedArgs for a build, overriding only the essentials. */
+  function buildArgs(dir: string, out: string, site?: string) {
+    return {
+      command: "build" as const,
+      dir,
+      out,
+      tokens: tokensPath,
+      data: undefined,
+      site,
+      port: undefined,
+      host: undefined,
+    };
+  }
+
+  let dir: string;
+  let outWithSite: string;
+  let outNoSite: string;
+  let logSpy: ReturnType<typeof import("vitest").vi.spyOn> | undefined;
+
+  beforeAll(async () => {
+    const { vi } = await import("vitest");
+    logSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    dir = mkdtempSync(join(tmpdir(), "adx-crawl-"));
+    outWithSite = join(dir, "out-site");
+    outNoSite = join(dir, "out-nosite");
+
+    // A root page (slug "index") composed from the real user-card fixture.
+    const page = {
+      page: "index",
+      title: "Home",
+      description: "The crawl-test home page.",
+      components: [{ use: join(siteDir, "..", "user-card"), data: { name: "X" } }],
+    };
+    writeFileSync(join(dir, "index.json"), JSON.stringify(page), "utf8");
+
+    // An inner page (slug "about") to prove slug -> /about/.
+    const about = {
+      page: "about",
+      title: "About",
+      description: "The crawl-test about page.",
+      components: [{ use: join(siteDir, "..", "user-card"), data: { name: "Y" } }],
+    };
+    writeFileSync(join(dir, "about.json"), JSON.stringify(about), "utf8");
+
+    // A site config with a trailing-slash baseUrl (exercises normalizeBase).
+    writeFileSync(
+      join(dir, "site.json"),
+      JSON.stringify({ baseUrl: "https://example.com/" }),
+      "utf8",
+    );
+  });
+
+  afterAll(() => {
+    logSpy?.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("writes sitemap.xml + robots.txt at the output root for a root page (AC1-3,6)", () => {
+    const code = run(buildArgs(join(dir, "index.json"), outWithSite, join(dir, "site.json")));
+    expect(code).toBe(0);
+
+    const sitemap = readFileSync(join(outWithSite, "sitemap.xml"), "utf8");
+    expect(sitemap).toContain(
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    );
+    // root slug -> baseUrl/, normalized (no double slash from the trailing /).
+    expect(sitemap).toContain("<loc>https://example.com/</loc>");
+    expect(sitemap).not.toContain("example.com//");
+
+    const robots = readFileSync(join(outWithSite, "robots.txt"), "utf8");
+    expect(robots).toContain("User-agent: *");
+    expect(robots).toContain("Allow: /");
+    expect(robots).toContain("Sitemap: https://example.com/sitemap.xml");
+  });
+
+  it("derives the sitemap clean path from the slug for an inner page (AC2,AC7)", () => {
+    const innerOut = join(dir, "out-inner");
+    const code = run(buildArgs(join(dir, "about.json"), innerOut, join(dir, "site.json")));
+    expect(code).toBe(0);
+
+    // Files land at the TOP-LEVEL out root, not the slug sub-dir.
+    expect(existsSync(join(innerOut, "sitemap.xml"))).toBe(true);
+    expect(existsSync(join(innerOut, "about", "index.html"))).toBe(true);
+
+    const sitemap = readFileSync(join(innerOut, "sitemap.xml"), "utf8");
+    expect(sitemap).toContain("<loc>https://example.com/about/</loc>");
+  });
+
+  it("writes neither file with no --site and leaves page bytes unchanged (AC4)", () => {
+    const code = run(buildArgs(join(dir, "index.json"), outNoSite, undefined));
+    expect(code).toBe(0);
+
+    expect(existsSync(join(outNoSite, "sitemap.xml"))).toBe(false);
+    expect(existsSync(join(outNoSite, "robots.txt"))).toBe(false);
+
+    // The emitted index.html is byte-for-byte what compilePage produces with
+    // no site config (the crawl feature does not touch page output).
+    const written = readFileSync(join(outNoSite, "index.html"), "utf8");
+    expect(written).toBe(compilePage(join(dir, "index.json"), { tokensPath }).html);
   });
 });
 

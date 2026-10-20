@@ -80,6 +80,7 @@ import {
 } from "node:http";
 import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
+import { cleanPathForSlug, emitCrawlFiles } from "./page/crawl.js";
 import { scaffoldProject } from "./scaffold.js";
 import { scaffoldComponent } from "./create.js";
 import { PATTERNS, scaffoldPattern } from "./patterns.js";
@@ -523,6 +524,13 @@ function runPage(args: ParsedArgs): number {
   // Each distinct component's hydration module + its behavior source, beside
   // the page so the relative imports resolve in the browser.
   writeComponentAssets(outDir, result.components);
+  // With a configured site baseUrl, emit sitemap.xml + robots.txt at the
+  // TOP-LEVEL output root (args.out) regardless of the page's slug sub-dir, so
+  // crawlers find them at the conventional site root. No baseUrl -> no files,
+  // no error. The sitemap path is derived from the slug, not page.canonical.
+  if (result.baseUrl) {
+    emitCrawlFiles(args.out, result.baseUrl, [cleanPathForSlug(slug)]);
+  }
   process.stdout.write(`Built page ${slug} -> ${outDir}\n`);
   return 0;
 }
