@@ -4,8 +4,9 @@ on:
   push:
     branches: [main]
 
+# contents: write so the job can commit the version bump back to main.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: publish
@@ -14,8 +15,14 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Skip the run for the bot's own release commit to avoid an infinite loop.
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Use the default token so the follow-up push is authenticated, and
+          # fetch full history so the commit/push is on top of main cleanly.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,20 +31,60 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - name: Publish if version is new
+
+      - name: Compute next version (next patch on the 0.1.x line)
+        id: version
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          PUBLISHED="$(npm view project-adx-0@"$VERSION" version 2>/dev/null || true)"
-          if [ -n "$PUBLISHED" ]; then
-            echo "project-adx-0@$VERSION already published; skipping."
-            exit 0
+          # Every build gets a distinct, incrementing patch version. The source
+          # of truth is the npm registry, not package.json: take the highest
+          # published 0.1.x patch and add one. This stays correct even if
+          # package.json lags or a prior run left it mid-bump.
+          MINOR_LINE="0.1"
+          # All published versions, newline-separated (empty on a brand-new pkg).
+          VERSIONS="$(npm view project-adx-0 versions --json 2>/dev/null \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let v=[];try{v=JSON.parse(s||"[]")}catch{};if(!Array.isArray(v))v=[v];process.stdout.write(v.join("\n"))})' \
+            || true)"
+          # Highest patch N among strictly x.y.N (no prerelease suffix) on 0.1.x.
+          HIGHEST="$(printf '%s\n' "$VERSIONS" \
+            | grep -E "^${MINOR_LINE}\.[0-9]+$" \
+            | awk -F. '{print $3}' \
+            | sort -n | tail -1)"
+          if [ -z "$HIGHEST" ]; then
+            NEXT_PATCH=1
+          else
+            NEXT_PATCH=$((HIGHEST + 1))
           fi
-          # Publish to the default `latest` dist-tag so the documented install
-          # command — `npm install -g project-adx-0` — resolves to this version.
-          # While the project is pre-1.0 alpha, the newest alpha IS the latest
-          # release users should get. (Revisit once a stable line and a separate
-          # prerelease line need to coexist.)
-          echo "Publishing project-adx-0@$VERSION to latest."
+          NEXT="${MINOR_LINE}.${NEXT_PATCH}"
+          echo "Highest published ${MINOR_LINE}.x patch: ${HIGHEST:-none} -> next: $NEXT"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Set package.json version
+        run: |
+          # --no-git-tag-version: just rewrite package.json/lockfile; we commit
+          # the bump ourselves below. --allow-same-version is harmless here.
+          npm version "${{ steps.version.outputs.next }}" \
+            --no-git-tag-version --allow-same-version
+
+      - name: Publish to npm (latest)
+        run: |
+          # Publishes under the default `latest` dist-tag so the documented
+          # install — `npm install -g project-adx-0` — always gets this newest
+          # build. prepublishOnly rebuilds from the bumped version.
+          echo "Publishing project-adx-0@${{ steps.version.outputs.next }} to latest."
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit the version bump back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          # Nothing to commit if the version was already set to this value.
+          if git diff --cached --quiet; then
+            echo "No version change to commit."
+            exit 0
+          fi
+          # [skip ci] stops this commit from retriggering the publish workflow.
+          git commit -m "chore(release): project-adx-0@${{ steps.version.outputs.next }} [skip ci]"
+          git push origin HEAD:main
