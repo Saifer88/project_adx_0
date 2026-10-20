@@ -601,12 +601,13 @@ AI: [follows token-efficient patterns automatically]
 
 ## CLI Commands
 
-Milestones 1 and 2 ship the init/create/build/check/serve/tokens/help commands below; the rest are planned.
+Milestones 1 and 2 (plus the shipped scaffolders) provide the init/create/pattern/build/check/serve/tokens/help commands below; the rest are planned.
 
 ```bash
 # Working today (M1 + M2)
 adx init [name]                                                       # scaffold a new starter project (./<name>, or the current dir)
 adx create <component-name>                                           # scaffold one new component into the current project
+adx pattern [<name>] [targetDir] [--list]                             # scaffold an accessible built-in pattern (form, table, modal)
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
 adx build <page.json> [--out dist] [--tokens <path>] [--site <site.json>]  # compile a page (composes components); --site merges shared assets
 adx serve [dir] [--port 3000] [--host localhost]                      # preview a build locally (static server, does not compile)
@@ -617,9 +618,22 @@ adx help                                                              # show the
 npm run benchmark                                                     # measured ADX-vs-React token comparison (dev-only)
 
 # Planned
-adx dev                # Start dev server (hot reload)
-adx pattern <name>     # Generate pattern component
+adx dev                # Start dev server (hot reload); richer project/pattern templates
 ```
+
+### Scaffold a built-in pattern
+
+`adx pattern <name>` drops an accessible-by-default component into your project.
+Run `adx pattern` (or `adx pattern --list`) to see the catalog: `form`, `table`,
+and `modal`. Each scaffolds four `.adx` files that build and check with no
+`--data`, use design tokens only, and carry the accessibility baseline (form
+labels + a live error region, a dialog role + accessible name, scoped table
+headers + caption). Files land under `<targetDir>/<name>/`; `targetDir` defaults
+to the pattern name. Like `adx init`/`adx create`, it refuses to overwrite and
+writes nothing on conflict. One honest caveat: the `modal` pattern ships correct
+static dialog semantics plus an `onClose` that emits `close`, but `:if`-driven
+open/close toggling is not a runtime behavior in this release — a host decides
+when the dialog is mounted.
 
 ### Add a component to an existing project
 

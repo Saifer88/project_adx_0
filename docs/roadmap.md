@@ -147,6 +147,28 @@ of the four files already exists it writes nothing and exits 1 with the `[ADX] �
 already exists; refusing to overwrite` error. The one conflict-safe writer
 (`writeFileSet`) now backs both `init` and `create`.
 
+## Shipped — built-in patterns (`adx pattern`) ✅
+
+`adx pattern [<name>] [targetDir] [--list]` scaffolds ONE accessible-by-default
+pattern component from a data-driven catalog (`form`, `table`, `modal`) into
+`<targetDir>/<name>/` (`targetDir` defaults to the pattern name). Each pattern is
+four `.adx` files whose props all default — so `adx build`/`adx check` succeed
+with no `--data` — using design tokens only and a token-sized touch target on
+interactive controls (the same WCAG-AA bar as `init`/`create`). Semantics are
+accessible by default: the `form` has `<label for>`+`<input id>`, hint text, and
+an `aria-live` error region whose text is a computed `{{nameError}}` (live-patched
+on submit via `getNameError` — it relies on FEAT's computed runtime, kept live by
+the `@submit` handler); the `table` has a `<caption>`, `<thead>`/`<tbody>`, and
+`<th scope="col">` headers with `:for`-unrolled (frozen) rows; the `modal` has
+`role="dialog"` + `aria-modal` + `aria-labelledby`, a keyboard close button, and
+an `onClose` that emits `close`. Honest limit: `:if` open/close STRUCTURAL
+toggling is not a runtime behavior — the modal ships correct static dialog
+semantics and the close handler, and a host controls mounting. `adx pattern` with
+no name or `--list` lists the catalog (sorted) and exits 0; an unknown name errors
+`[ADX] <name> - unknown pattern (available: form, modal, table)` and exits 1; a
+conflict writes nothing and exits 1. Adding a pattern is a pure data edit (a key
+in the compiler's pattern catalog), reusing the shared `writeFileSet` guard.
+
 ## Shipped — first-class external design-library assets (pages) ✅
 
 Pages can reference external CSS/JS (Tailwind or any design library) via an
@@ -171,11 +193,12 @@ lookup) — not built, explicit `--site` only; running Tailwind/any toolchain fr
 the compiler — never; per-component or standalone-build assets — out of scope.
 
 ## Later milestones (unscheduled)
-Pattern library, dev server + hot reload, richer `adx create`/`pattern` CLI
-(beyond the shipped `adx init` scaffolder, `adx create` component scaffolder, and
-`adx tokens` token listing), compile-time WCAG-AA audit,
-sitemap.xml/robots.txt generation, bundle-size budgets, VS Code extension,
-browser devtools. See the README roadmap table.
+A broader pattern library and richer `adx create`/`pattern` templates (beyond the
+shipped `adx init` scaffolder, `adx create` component scaffolder, `adx pattern`
+form/table/modal catalog, and `adx tokens` token listing), dev server + hot
+reload, compile-time WCAG-AA audit, sitemap.xml/robots.txt generation,
+bundle-size budgets, VS Code extension, browser devtools. See the README roadmap
+table.
 
 ## Distribution (how users get it)
 The repo is one npm package named `project-adx-0` (the CLI command it installs

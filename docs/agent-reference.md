@@ -353,10 +353,31 @@ adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate
 adx check <page.json> [--tokens <path>] [--site <site.json>]          # validate every page instance
 adx init [name]                                                       # scaffold a starter project (./<name> or CWD)
 adx create <component-name>                                           # scaffold one new component into the current project
+adx pattern [<name>] [targetDir] [--list]                             # scaffold an accessible built-in pattern (form, table, modal)
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 adx tokens [--tokens <path>]                                          # list all design tokens, grouped by category
 adx help                                                              # print the full command listing (stdout, exit 0)
 ```
+
+`adx pattern` catalog (each scaffolds a four-file, build-clean, no-`--data`
+component under `<targetDir>/<name>/`; `targetDir` defaults to `<name>`):
+
+- `form` — semantic `<form @submit>` with `<label for>`+`<input id>`, hint text,
+  and an `aria-live="polite"` error region whose text is a computed
+  `{{nameError}}` (live-patched on submit via its `getNameError` getter).
+- `table` — `<table>` with `<caption>`, `<thead>`/`<tbody>`, and
+  `<th scope="col">` headers; rows are `:for`-unrolled from a defaulted array
+  prop (build-time frozen — a static data table).
+- `modal` — `role="dialog"` + `aria-modal="true"` + `aria-labelledby`, a
+  keyboard-accessible close `<button type="button">`, and an `onClose` that
+  emits `close`. NOTE: `:if` open/close STRUCTURAL toggling is not a runtime
+  behavior in this release — the pattern ships correct static dialog semantics
+  and the close handler; a host controls whether the dialog is mounted.
+
+`adx pattern` with no name or `--list` prints the catalog (sorted) and exits 0;
+an unknown name errors `[ADX] <name> - unknown pattern (available: …)` and
+exits 1; a conflict writes nothing and exits 1. Adding a pattern is a data edit
+in the compiler's pattern catalog.
 
 Future CLI proposals (`dev`, richer `create`/`pattern`) are tracked in the
 [roadmap](./roadmap.md), not available commands.

@@ -29,6 +29,13 @@
  *       validates the name, refuses to overwrite (writing nothing on conflict),
  *       prints each created path, and exits 0 on success / 1 on error.
  *
+ *   adx pattern [<name>] [targetDir] [--list]
+ *       Scaffolds ONE accessible-by-default built-in pattern (`form`, `table`,
+ *       or `modal`) into `./<targetDir>` (default the pattern's own name). With
+ *       no name or `--list` it prints the catalog and exits 0; an unknown name
+ *       errors (`[ADX] <name> - unknown pattern …`) and exits 1. One-shot: it
+ *       refuses to overwrite (writing nothing on conflict), like init/create.
+ *
  *   adx serve [dir] [--port 3000] [--host localhost]
  *       Static file server for already-compiled output; it does NOT compile.
  *       `dir` defaults to `dist`. Serves HTML/CSS/JS ES modules over HTTP so you
@@ -75,6 +82,7 @@ import { compileComponent, checkComponent } from "./compile.js";
 import { compilePage, checkPage } from "./page/compile.js";
 import { scaffoldProject } from "./scaffold.js";
 import { scaffoldComponent } from "./create.js";
+import { PATTERNS, scaffoldPattern } from "./patterns.js";
 import { loadTokens } from "./tokens/load.js";
 import type { ComponentAsset } from "./codegen/glue.js";
 
@@ -92,6 +100,12 @@ interface ParsedArgs {
   // can apply and an explicitly bad --port can be rejected (see serve()).
   port: number | undefined;
   host: string | undefined;
+  // pattern-only. OPTIONAL fields (so test/cli-commands.test.ts's argsFor
+  // literal stays type-complete without them). `list` is set only for the
+  // `pattern` command's `--list`; `dir2` holds the SECOND positional (a target
+  // dir for `adx pattern <name> <targetDir>`), additive for other commands.
+  list?: boolean;
+  dir2?: string;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -110,6 +124,10 @@ function parseArgs(argv: string[]): ParsedArgs {
   // token) when the command is `serve`; for build/check they stay unknown flags
   // and are skipped, so those commands' arg handling is byte-for-byte as before.
   const isServe = command === "serve";
+  // `--list` is a pattern-only flag (mirrors the serve-only --port/--host
+  // gating): for every other command it stays an unknown `--` token and is
+  // skipped, so their arg handling is byte-for-byte as before.
+  const isPattern = command === "pattern";
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === "--out") {
@@ -134,8 +152,14 @@ function parseArgs(argv: string[]): ParsedArgs {
       }
     } else if (isServe && arg === "--host") {
       parsed.host = rest[++i];
+    } else if (isPattern && arg === "--list") {
+      parsed.list = true;
     } else if (!arg.startsWith("--") && parsed.dir === undefined) {
       parsed.dir = arg;
+    } else if (!arg.startsWith("--") && parsed.dir2 === undefined) {
+      // The SECOND non-`--` positional (e.g. `adx pattern form ui/x`). Captured
+      // for every command but only consumed by `pattern`; others ignore it.
+      parsed.dir2 = arg;
     }
   }
   return parsed;
@@ -175,6 +199,10 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   {
     invocation: "adx create <component-name>",
     description: "Scaffold one new component into the current project.",
+  },
+  {
+    invocation: "adx pattern [<name>] [targetDir] [--list]",
+    description: "Scaffold an accessible built-in pattern (form, table, modal).",
   },
   {
     invocation:
@@ -559,6 +587,41 @@ function runCreate(args: ParsedArgs): number {
   return 0;
 }
 
+/**
+ * Scaffold a built-in pattern (`adx pattern [<name>] [targetDir] [--list]`).
+ * One-shot, mirroring `runCreate`:
+ *   - `--list`, or no name, prints the catalog (`name — description`, one per
+ *     line, sorted) to stdout and returns 0 (LISTING WINS — `--list` with a
+ *     name still lists);
+ *   - an unknown name prints `[ADX] <name> - unknown pattern (available: …)`
+ *     (sorted) to stderr and returns 1;
+ *   - otherwise it scaffolds the pattern into `dir2` (default the pattern's own
+ *     name) via `scaffoldPattern` (which refuses to overwrite, throwing an
+ *     `[ADX]` error that `run()` turns into stderr + exit 1), prints each
+ *     created path to stdout, and returns 0.
+ */
+function runPattern(args: ParsedArgs): number {
+  const names = Object.keys(PATTERNS).sort();
+
+  if (args.list || !args.dir) {
+    const out = names.map((name) => `${name} — ${PATTERNS[name].description}`);
+    process.stdout.write(out.join("\n") + "\n");
+    return 0;
+  }
+
+  const entry = PATTERNS[args.dir];
+  if (!entry) {
+    process.stderr.write(
+      `[ADX] ${args.dir} - unknown pattern (available: ${names.join(", ")})\n`,
+    );
+    return 1;
+  }
+
+  const created = scaffoldPattern(entry, args.dir2 ?? entry.name);
+  process.stdout.write(created.join("\n") + "\n");
+  return 0;
+}
+
 function run(args: ParsedArgs): number {
   // `help` is an explicit request: full help to STDOUT, exit 0 (not an error).
   if (args.command === "help") {
@@ -575,7 +638,8 @@ function run(args: ParsedArgs): number {
     args.command !== "build" &&
     args.command !== "check" &&
     args.command !== "init" &&
-    args.command !== "create"
+    args.command !== "create" &&
+    args.command !== "pattern"
   ) {
     // Bare `adx` and any unknown command: short usage to STDERR, exit 1
     // (RECOMMENDED — a missing/unknown command is an error, so stderr + nonzero;
@@ -584,11 +648,18 @@ function run(args: ParsedArgs): number {
     return 1;
   }
 
-  // `init` takes an OPTIONAL positional (name); `create` takes a REQUIRED one.
-  // Both turn an `[ADX]` throw (clobber/invalid name) into stderr + exit 1.
-  if (args.command === "init" || args.command === "create") {
+  // `init` takes an OPTIONAL positional (name); `create` takes a REQUIRED one;
+  // `pattern` takes an OPTIONAL name (+ optional targetDir / --list). All three
+  // turn an `[ADX]` throw (clobber/invalid name) into stderr + exit 1.
+  if (
+    args.command === "init" ||
+    args.command === "create" ||
+    args.command === "pattern"
+  ) {
     try {
-      return args.command === "init" ? runInit(args) : runCreate(args);
+      if (args.command === "init") return runInit(args);
+      if (args.command === "create") return runCreate(args);
+      return runPattern(args);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       process.stderr.write(message + "\n");
