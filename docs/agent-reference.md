@@ -65,8 +65,12 @@ Implemented: `build`/`check`/`serve`/`init`/`tokens`/`help`, typed props/default
 pages/composition/slots, scoped CSS, per-instance text/attribute updates, and
 standalone child assets. `serve` is a static preview server only (no compile);
 `init` scaffolds a minimal, buildable starter project.
+Single bare computed interpolations/`:prop` bindings (`{{displayName}}`,
+`:title="displayName"`) now re-evaluate at runtime via their imported `get*`
+over the live state.
 Not implemented: `@adx/patterns`, lifecycle execution, a dev server
-with hot reload, automatic accessibility audits, or structural/computed reactivity.
+with hot reload, automatic accessibility audits, or structural reactivity
+(computed member chains / mixed templates stay frozen).
 Future API sketches live separately in [Planned Patterns](./planned-patterns.md);
 do not use them in current components.
 Both `build` and `check` execute trusted component code; `node:vm` is not a
@@ -554,11 +558,13 @@ no `setup()` re-run. Limits (by design in M2):
 
 - **No structural reactivity.** `:if`/`:else`/`:for` are build-time only; adding
   or removing nodes at runtime is not supported.
-- **Computed-backed interpolations are not live-patched.** A run whose root
-  identifier is a `get*` computed value (`{{displayName}}`, `{{displayName.foo}}`,
-  `:src="displayName.url"`, or any mixed run containing one) is frozen at its
-  build-time value — never blanked, never updated. Only `state`/`props`/loop-local
-  refs live-patch.
+- **Single bare computed interpolations/`:prop` bindings live-patch.** A run
+  that is exactly one bare `get*` computed reference (`{{displayName}}`,
+  `:title="displayName"`) re-evaluates on handler return by calling the
+  component's imported `get*` over the live `state`, patching that instance's
+  node. Computed MEMBER CHAINS (`{{displayName.foo}}`, `:src="displayName.url"`)
+  and any MIXED run containing a computed hole stay frozen at their build-time
+  value — never blanked, never updated.
 - `:for`-unrolled nodes get events-only hooks (text/attrs frozen).
 - The first patch after hydration is a no-op for a deterministic `setup()`.
 

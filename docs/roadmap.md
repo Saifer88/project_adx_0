@@ -45,9 +45,11 @@ hydrates per-instance (`data-adx-i`, three-part hook ids).
 ### 4. Reactivity semantics ✅
 On handler return, the glue re-evaluates and patches only the affected nodes'
 text/attributes for that instance — no virtual DOM, no `setup()` re-run,
-consistent with the hydration-only runtime. Limits are documented and enforced: no
-structural reactivity, and computed-backed (`get*`) interpolations are frozen at
-their build-time value.
+consistent with the hydration-only runtime. Single bare computed-backed (`get*`)
+interpolations/`:prop` bindings re-evaluate on handler return via their imported
+`get*` over the live state. Limits are documented and enforced: no structural
+reactivity, and computed member chains / mixed templates stay frozen at their
+build-time value.
 
 ### 5. Measured token benchmark ✅
 Replaced the hand-estimated figures with real numbers from a reproducible

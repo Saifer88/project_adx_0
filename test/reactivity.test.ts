@@ -70,11 +70,15 @@ describe("reactivity (jsdom) — handler return patches hooked nodes", () => {
     src: string,
     behaviorSrc: string,
     state: Record<string, unknown> | Record<string, unknown>[],
-    computed: Record<string, unknown> = {},
+    computed: Record<string, unknown> | Record<string, unknown>[] = {},
   ): Promise<Document> {
     const states = Array.isArray(state) ? state : [state];
+    // `computed` may be a single object (shared) or one per instance (parallel
+    // to `states`), so each instance can bake its own build-time computed value.
+    const computedFor = (index: number): Record<string, unknown> =>
+      Array.isArray(computed) ? computed[index] ?? {} : computed;
     const instances = states.map((value, instanceIndex) => {
-      const ctx = makeReactiveCtx(behaviorSrc, value, computed);
+      const ctx = makeReactiveCtx(behaviorSrc, value, computedFor(instanceIndex));
       ctx.instanceIndex = instanceIndex;
       return { ctx, ...emitHtml(parseStructure(src, "structure.adx"), ctx) };
     });
@@ -207,38 +211,86 @@ describe("reactivity (jsdom) — handler return patches hooked nodes", () => {
     expect(img.getAttribute("src")).toBe("/b.png");
   });
 
-  it("leaves a getDisplayName-backed <h2>{{displayName}}</h2> UNCHANGED (not blanked) after rerender", async () => {
+  it("live-updates a getDisplayName-backed <h2>{{displayName}}</h2> after the handler mutates its source state", async () => {
+    // FEAT-001 INTENTIONAL CHANGE (was a freeze test): a single bare computed
+    // interpolation now re-evaluates via its imported getter on handler return.
     const behaviorSrc =
-      "export function setup(){return {name: 'Ada', count: 0}} " +
-      "export function getDisplayName(state){return state.name} " +
-      "export function onInc(state){state.count = state.count + 1}";
-    // The <h2> is computed-backed (frozen); the <span> count is state-backed.
+      "export function setup(props){return {...props}} " +
+      "export function getDisplayName(state){return state.name.toUpperCase()} " +
+      "export function onRename(state){state.name = 'Grace'}";
+    // The <h2> is computed-backed (now live); the <span> label is state-backed.
     const src =
-      '<article @inc="onInc"><h2>{{displayName}}</h2><span>{{count}}</span></article>';
-    const doc = await hydrate(
-      src,
-      behaviorSrc,
-      { name: "Ada", count: 0 },
-      { displayName: "Ada" },
-    );
+      '<article @rename="onRename"><h2>{{displayName}}</h2><span>{{name}}</span></article>';
+    const doc = await hydrate(src, behaviorSrc, { name: "Ada" }, { displayName: "ADA" });
 
     const article = doc.querySelector("article")!;
     const h2 = doc.querySelector("h2")!;
     const span = doc.querySelector("span")!;
-    expect(h2.textContent).toBe("Ada");
-    expect(span.textContent).toBe("0");
+    // Build-time static value (SEO static-first): getter already ran at build.
+    expect(h2.textContent).toBe("ADA");
+    expect(span.textContent).toBe("Ada");
 
-    // The @inc handler is on the article; dispatch there.
+    // The @rename handler is on the article; dispatch there.
     article.dispatchEvent(
       new (globalThis as { CustomEvent: typeof CustomEvent }).CustomEvent(
-        "inc",
+        "rename",
       ),
     );
 
-    // Computed-backed <h2> keeps its build-time value (NOT blanked to "").
-    expect(h2.textContent).toBe("Ada");
-    // State-backed <span> updates.
-    expect(span.textContent).toBe("1");
+    // Computed-backed <h2> re-evaluates getDisplayName over the mutated state.
+    expect(h2.textContent).toBe("GRACE");
+    // State-backed <span> updates too.
+    expect(span.textContent).toBe("Grace");
+  });
+
+  it("updates a computed <h2> for the clicked instance ONLY (per-instance isolation)", async () => {
+    const behaviorSrc =
+      "export function setup(props){return {...props}} " +
+      "export function getDisplayName(state){return state.name.toUpperCase()} " +
+      "export function onRename(state){state.name = 'Grace'}";
+    const src = '<article @rename="onRename"><h2>{{displayName}}</h2></article>';
+    const doc = await hydrate(
+      src,
+      behaviorSrc,
+      [{ name: "Ada" }, { name: "Linus" }],
+      [{ displayName: "ADA" }, { displayName: "LINUS" }],
+    );
+
+    const articles = doc.querySelectorAll("article");
+    const headings = doc.querySelectorAll("h2");
+    expect(headings[0].textContent).toBe("ADA");
+    expect(headings[1].textContent).toBe("LINUS");
+
+    // Rename only the first instance.
+    articles[0].dispatchEvent(
+      new (globalThis as { CustomEvent: typeof CustomEvent }).CustomEvent(
+        "rename",
+      ),
+    );
+
+    expect(headings[0].textContent).toBe("GRACE");
+    // The second instance's computed node is untouched (own state preserved).
+    expect(headings[1].textContent).toBe("LINUS");
+  });
+
+  it("live-updates a computed :title=\"displayName\" attribute after a handler", async () => {
+    const behaviorSrc =
+      "export function setup(props){return {...props}} " +
+      "export function getDisplayName(state){return state.name.toUpperCase()} " +
+      "export function onRename(state){state.name = 'Grace'}";
+    const src = '<article :title="displayName" @rename="onRename">x</article>';
+    const doc = await hydrate(src, behaviorSrc, { name: "Ada" }, { displayName: "ADA" });
+
+    const article = doc.querySelector("article")!;
+    expect(article.getAttribute("title")).toBe("ADA");
+
+    article.dispatchEvent(
+      new (globalThis as { CustomEvent: typeof CustomEvent }).CustomEvent(
+        "rename",
+      ),
+    );
+
+    expect(article.getAttribute("title")).toBe("GRACE");
   });
 
   it("does not live-update a :for item on event (no structural reactivity)", async () => {

@@ -69,10 +69,67 @@ export function emitComponentGlue(
     )),
   ).sort();
 
-  const importLine =
-    handlers.length > 0
-      ? `import { setup, ${handlers.join(", ")} } from ${JSON.stringify(importPath)};`
-      : `import { setup } from ${JSON.stringify(importPath)};`;
+  // A component with no wired `@event` anywhere never re-renders at runtime, so
+  // its computed* instructions are dead weight. In that case they are filtered
+  // out below so a computed-only, handler-less component emits byte-for-byte the
+  // pre-feature glue (no getter import, no retained computed hook).
+  const hasWiredEvent = c.instances.some((inst) =>
+    (inst.hooks ?? c.hooks).some((h) => h.events.length > 0),
+  );
+
+  // Hooks are stored structurally (events + updates + node index `n`); the loop
+  // rebuilds each hook's instance-scoped id from SCOPE + the ordinal + `n`. A
+  // hook with no events AND no updates carries nothing to wire or patch, so it
+  // is dropped. When no handler is wired, computed* updates are stripped FIRST
+  // (they can never fire), which also drops any now-empty computed-only hook.
+  const serializeHooks = (hooks: BindingHook[], hasWiredEvent: boolean) => hooks
+      .map((h) => ({
+        n: h.n,
+        events: h.events,
+        updates: hasWiredEvent
+          ? h.updates
+          : h.updates.filter(
+              (u) => u.kind !== "computedText" && u.kind !== "computedAttr",
+            ),
+      }))
+      .filter((h) => h.events.length > 0 || h.updates.length > 0);
+
+  // Serialize each instance once; reuse for both the getter scan and the JSON.
+  const serialized = c.instances.map((inst) => ({
+    i: `i${inst.instanceIndex}`,
+    props: inst.props,
+    hooks: serializeHooks(inst.hooks ?? c.hooks, hasWiredEvent),
+  }));
+
+  // Distinct getter export names referenced by any retained computed* update —
+  // the single runtime source of getter names (the glue has no ctx.behavior).
+  const getters = Array.from(
+    new Set(
+      serialized.flatMap((inst) =>
+        inst.hooks.flatMap((h) =>
+          h.updates
+            .filter(
+              (u) => u.kind === "computedText" || u.kind === "computedAttr",
+            )
+            .map((u) => (u as { get: string }).get),
+        ),
+      ),
+    ),
+  ).sort();
+
+  const imports = handlers.length > 0 ? ["setup", ...handlers] : ["setup"];
+  const importLine = `import { ${[...imports, ...getters].join(
+    ", ",
+  )} } from ${JSON.stringify(importPath)};`;
+
+  // The GETTERS map lets applyUpdate look a computed getter up by name. It is
+  // emitted ONLY when at least one computed* update survives, so a component
+  // with no live computed reactivity (incl. every pre-feature component) keeps
+  // byte-for-byte the previous glue.
+  const gettersBlock =
+    getters.length > 0
+      ? `\nconst GETTERS = { ${getters.map((g) => `${g}: ${g}`).join(", ")} };\n`
+      : "";
 
   // The HANDLERS map lets the per-instance loop look a handler up by name.
   const handlersMap =
@@ -80,27 +137,7 @@ export function emitComponentGlue(
       ? `const HANDLERS = { ${handlers.map((h) => `${h}: ${h}`).join(", ")} };`
       : `const HANDLERS = {};`;
 
-  // Hooks are stored structurally (events + updates + node index `n`); the loop
-  // rebuilds each hook's instance-scoped id from SCOPE + the ordinal + `n`. A
-  // hook with no events AND no updates carries nothing to wire or patch, so it
-  // is dropped from the emitted array.
-  const serializeHooks = (hooks: BindingHook[]) => hooks
-      .filter((h) => h.events.length > 0 || h.updates.length > 0)
-      .map((h) => ({
-        n: h.n,
-        events: h.events,
-        updates: h.updates,
-      }));
-
-  const instancesJson = JSON.stringify(
-    c.instances.map((inst) => ({
-      i: `i${inst.instanceIndex}`,
-      props: inst.props,
-      hooks: serializeHooks(inst.hooks ?? c.hooks),
-    })),
-    null,
-    2,
-  );
+  const instancesJson = JSON.stringify(serialized, null, 2);
 
   return `${importLine}
 
@@ -117,7 +154,7 @@ const BOOLEAN_ATTRIBUTES = new Set(${JSON.stringify([...BOOLEAN_ATTRIBUTES])});
 const INSTANCES = ${instancesJson};
 
 ${handlersMap}
-
+${gettersBlock}
 const overrides = (globalThis.__ADX_PROPS__ || {})[COMPONENT] || {};
 
 // Exported for tooling/tests: the LAST instance's state/props.
@@ -231,6 +268,18 @@ function applyUpdate(el, u, state) {
     el.textContent = joinParts(u.parts, state);
   } else if (u.kind === "attrTemplate") {
     setOrRemoveAttr(el, u.name, joinParts(u.parts, state));
+  } else if (u.kind === "computedText") {
+    // Re-evaluate the imported get* over the live state. A missing/throwing
+    // getter leaves the build-time text untouched (never blanks the node).
+    const fn = GETTERS[u.get];
+    if (fn) {
+      try { el.textContent = toText(fn(state)); } catch (_) { /* keep build-time value */ }
+    }
+  } else if (u.kind === "computedAttr") {
+    const fn = GETTERS[u.get];
+    if (fn) {
+      try { setOrRemoveAttr(el, u.name, fn(state)); } catch (_) { /* keep build-time value */ }
+    }
   }
 }
 

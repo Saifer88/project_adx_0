@@ -191,10 +191,12 @@ choosing ADX for your frontend.
 | :--- | :--- |
 | Project scaffolding and static preview | Hot reload and a compiling dev server |
 | Typed props, defaults, composition, and slots | Framework pattern library and lifecycle execution |
-| Per-instance text and attribute updates | Runtime structural and computed reactivity |
+| Per-instance text/attribute updates, incl. single bare computed values | Runtime structural reactivity and computed member chains/mixed templates |
 | External CSS/JS assets (Tailwind etc.) via page `assets` + `--site` | Asset replace-semantics and site-config auto-discovery |
 
-`:if`/`:for` and computed values are build-time only. See the
+`:if`/`:for` are build-time only; a single bare computed reference
+(`{{displayName}}`, `:title="displayName"`) live-patches on handler return while
+computed member chains and mixed templates stay build-time only. See the
 [reactivity contract](docs/agent-reference.md#reactivity-contract) before designing
 dynamic interactions, and the [roadmap](docs/roadmap.md) for planned features.
 

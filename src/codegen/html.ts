@@ -52,12 +52,20 @@ export type SerPart = { lit: string } | { expr: SerExpr };
 /**
  * A single build-time-compiled instruction the glue applies on `rerender`:
  * patch a hooked node's attribute or single text run from the current `state`.
+ *
+ * `computedText`/`computedAttr` carry the verbatim `get*` export name a single
+ * bare computed interpolation / `:prop` binding re-evaluates through at runtime:
+ * the glue calls that imported getter over the live `state`. Only a SINGLE bare
+ * computed run lowers to these — member chains, mixed templates, and structural
+ * runs stay build-time frozen and emit no instruction.
  */
 export type UpdateInstr =
   | { kind: "attr"; name: string; expr: SerExpr }
   | { kind: "text"; expr: SerExpr }
   | { kind: "attrTemplate"; name: string; parts: SerPart[] }
-  | { kind: "textTemplate"; parts: SerPart[] };
+  | { kind: "textTemplate"; parts: SerPart[] }
+  | { kind: "computedText"; get: string }
+  | { kind: "computedAttr"; name: string; get: string };
 
 /** A node that carries runtime bindings/events, recorded for the glue. */
 export interface BindingHook {
@@ -72,9 +80,11 @@ export interface BindingHook {
   bindings: string[];
   /**
    * Build-time-compiled patch instructions. On `rerender` the glue re-applies
-   * each against the instance's `state`. Computed-backed (`get*`) runs are
-   * FROZEN at lowering time and emit NO instruction, so they keep their
-   * build-time value and are never blanked.
+   * each against the instance's `state`. A SINGLE bare computed-backed (`get*`)
+   * run emits a `computedText`/`computedAttr` instruction that re-evaluates the
+   * getter over the live `state`; computed member chains, mixed templates, and
+   * structural (`:for`) runs stay FROZEN and emit NO instruction, keeping their
+   * build-time value.
    */
   updates: UpdateInstr[];
 }
@@ -118,9 +128,19 @@ export interface EmitState {
   /**
    * Bare computed names (`getDisplayName` -> `displayName`) built once per
    * emit from `ctx.behavior.computed` (reusing the Phase 1 helper). A run whose
-   * expression's ROOT ident is in this set is FROZEN — no UpdateInstr emitted.
+   * expression's ROOT ident is in this set is computed-backed: a single bare
+   * computed run lowers to a `computed*` instruction, while member chains and
+   * mixed templates stay FROZEN (no UpdateInstr emitted).
    */
   computedKeys: Set<string>;
+  /**
+   * Bare computed key -> verbatim `get*` export name
+   * (`displayName` -> `getDisplayName`). Built once per emit from
+   * `ctx.behavior.computed`; BUILD-TIME ONLY — the map itself is never
+   * serialized, only the resolved export name travels in a `computed*`
+   * instruction.
+   */
+  computedGetters: Map<string, string>;
   /** The page-global build accumulator (composition/dedupe); optional for the
    * direct-emit path used by unit tests. */
   build?: BuildState;
@@ -140,6 +160,9 @@ export function emitHtml(
     bindingCount: 0,
     hooks: [],
     computedKeys: new Set(ctx.behavior.computed.map(bareComputedKey)),
+    computedGetters: new Map(
+      ctx.behavior.computed.map((n) => [bareComputedKey(n), n]),
+    ),
     build,
     slots,
   };
@@ -336,7 +359,12 @@ function emitPlainElement(
     attrs.push(`data-adx-b="${id}"`);
     const updates = loopLocal || (scope.locals?.length ?? 0) > 0
       ? []
-      : buildUpdates(node.bindings, textRun, state.computedKeys);
+      : buildUpdates(
+          node.bindings,
+          textRun,
+          state.computedKeys,
+          state.computedGetters,
+        );
     state.hooks.push({
       id,
       n,
@@ -441,25 +469,26 @@ function singleInterpolatedTextRun(node: ElementNode): TextPart[] | null {
 
 /**
  * Build the per-hook update plan: an attr update per `:prop` binding plus one
- * text update for a single interpolated text run. The freeze rule (HIGH-1) is
- * applied uniformly — a run whose expression's ROOT ident is a computed name is
- * frozen (no UpdateInstr), so computed-backed content keeps its build-time
- * value and is never blanked on `rerender`.
+ * text update for a single interpolated text run. A SINGLE bare computed-backed
+ * run lowers to a `computed*` instruction (re-evaluated via the imported
+ * getter); computed member chains and mixed templates stay frozen (no
+ * UpdateInstr), keeping their build-time value and never being blanked.
  */
 function buildUpdates(
   bindings: Binding[],
   textRun: TextPart[] | null,
   computedKeys: Set<string>,
+  computedGetters: Map<string, string>,
 ): UpdateInstr[] {
   const updates: UpdateInstr[] = [];
 
   for (const binding of bindings) {
-    const instr = attrUpdate(binding, computedKeys);
+    const instr = attrUpdate(binding, computedKeys, computedGetters);
     if (instr) updates.push(instr);
   }
 
   if (textRun) {
-    const instr = textUpdate(textRun, computedKeys);
+    const instr = textUpdate(textRun, computedKeys, computedGetters);
     if (instr) updates.push(instr);
   }
 
@@ -471,14 +500,33 @@ function isFrozen(e: SerExpr, computedKeys: Set<string>): boolean {
   return computedKeys.has(rootIdent(e));
 }
 
-/** Lower a `:prop` binding to an attr/attrTemplate update, or null if frozen. */
+/**
+ * Return the verbatim `get*` export name for a SINGLE bare computed identifier
+ * (`{{displayName}}` -> `getDisplayName`), else `null`. A member chain
+ * (`displayName.foo`) is NOT a bare ident and returns `null` so it stays
+ * frozen.
+ */
+function computedGetterFor(
+  expr: SerExpr,
+  computedGetters: Map<string, string>,
+): string | null {
+  if (!("ident" in expr)) return null;
+  return computedGetters.get(expr.ident) ?? null;
+}
+
+/**
+ * Lower a `:prop` binding to an attr/attrTemplate/computedAttr update, or null
+ * if frozen.
+ */
 function attrUpdate(
   binding: Binding,
   computedKeys: Set<string>,
+  computedGetters: Map<string, string>,
 ): UpdateInstr | null {
   if (binding.template) {
     const parts = binding.template;
-    // Freeze the whole attr if ANY expr part's root ident is computed.
+    // Freeze the whole attr if ANY expr part's root ident is computed (attr
+    // templates never get runtime computed reactivity).
     if (
       parts.some((p) => "expr" in p && isFrozen(lowerExpr(p.expr), computedKeys))
     ) {
@@ -492,27 +540,41 @@ function attrUpdate(
   }
   if (binding.expr) {
     const expr = lowerExpr(binding.expr);
+    // A single bare computed `:prop` re-evaluates through its getter at runtime.
+    const getter = computedGetterFor(expr, computedGetters);
+    if (getter) return { kind: "computedAttr", name: binding.name, get: getter };
+    // Computed member chains stay frozen (root ident is computed, not bare).
     if (isFrozen(expr, computedKeys)) return null;
     return { kind: "attr", name: binding.name, expr };
   }
   return null;
 }
 
-/** Lower a single text run to a text/textTemplate update, or null if frozen. */
+/**
+ * Lower a single text run to a text/textTemplate/computedText update, or null
+ * if frozen.
+ */
 function textUpdate(
   parts: TextPart[],
   computedKeys: Set<string>,
+  computedGetters: Map<string, string>,
 ): UpdateInstr | null {
-  // Freeze the whole run if ANY expr part's root ident is computed.
+  // A single bare `{{expr}}` with no literal parts: a bare computed ident
+  // re-evaluates through its getter at runtime; a bare state/prop ref becomes a
+  // plain `text` update.
+  if (parts.length === 1 && "expr" in parts[0]) {
+    const expr = lowerExpr(parts[0].expr);
+    const getter = computedGetterFor(expr, computedGetters);
+    if (getter) return { kind: "computedText", get: getter };
+    if (isFrozen(expr, computedKeys)) return null;
+    return { kind: "text", expr };
+  }
+  // Mixed template (literal parts + >=1 hole): freeze if ANY hole's root ident
+  // is computed, else a live `textTemplate` preserving the literal interleaving.
   if (
     parts.some((p) => "expr" in p && isFrozen(lowerExpr(p.expr), computedKeys))
   ) {
     return null;
-  }
-  // A single bare `{{expr}}` with no literal parts becomes a `text` update;
-  // otherwise a `textTemplate` preserving the literal interleaving.
-  if (parts.length === 1 && "expr" in parts[0]) {
-    return { kind: "text", expr: lowerExpr(parts[0].expr) };
   }
   return { kind: "textTemplate", parts: parts.map(lowerPart) };
 }

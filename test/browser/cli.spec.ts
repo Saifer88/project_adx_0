@@ -20,8 +20,9 @@ function writeComponent(path: string, name: string, step: number): void {
     show: { type: "boolean", default: false }, active: { type: "boolean", default: false },
     items: { type: "array", default: ["A", "B"] },
   } }));
-  writeFileSync(join(path, "structure.adx"), '<section><h2>{{label}}</h2><p :if="show">{{label}}</p><button .increment @click="onInc">{{count}}</button><input type="checkbox" :checked="active"><input .name :value="label"><button .toggle :disabled="active" @click="onToggle">Toggle</button><ul><li :for="item in items"><span>{{item}}</span></li></ul></section>');
+  writeFileSync(join(path, "structure.adx"), '<section><h2>{{label}}</h2><p :if="show">{{label}}</p><button .increment @click="onInc">{{count}}</button><input type="checkbox" :checked="active"><input .name :value="label"><button .toggle :disabled="active" @click="onToggle">Toggle</button><h3 .display @click="onToggle">{{displayName}}</h3><ul><li :for="item in items"><span>{{item}}</span></li></ul></section>');
   writeFileSync(join(path, "behavior.adx.js"), `export function setup(props){return {...props}}
+export function getDisplayName(state){return state.label.toUpperCase()}
 export function onInc(state){state.count += ${step};state.items[0]="Changed"}
 export function onToggle(state){state.active=true;state.label="updated"}`);
   writeFileSync(join(path, "style.adx.css"), "section { padding: 8px; }");
@@ -138,10 +139,17 @@ test("form bindings update dirty properties and boolean attributes", async ({ pa
   await checkbox.uncheck();
   await section.locator(".name").fill("edited");
   await expect(section.locator(".toggle")).toBeEnabled();
+  // Computed node starts at its build-time value for THIS (first) instance.
+  await expect(section.locator(".display")).toHaveText("COUNTERA");
   await section.locator(".toggle").click();
   await expect(checkbox).toBeChecked();
   await expect(section.locator(".name")).toHaveValue("updated");
   await expect(section.locator(".toggle")).toBeDisabled();
+  // FEAT-001 runtime: onToggle set label="updated"; the computed {{displayName}}
+  // re-evaluates getDisplayName over the live state for the clicked instance only.
+  await expect(section.locator(".display")).toHaveText("UPDATED");
+  // Other instances' computed nodes are untouched (per-instance isolation).
+  await expect(page.locator(".display")).toHaveText(["UPDATED", "COUNTERA", "COUNTERB"]);
 });
 
 test("standalone composed children receive working modules", async ({ page }) => {
@@ -162,6 +170,9 @@ test("content and metadata remain complete without JavaScript", async ({ browser
     await page.goto(origin);
     await expect(page.locator(".increment")).toHaveText(["0", "10", "20"]);
     await expect(page.locator("h2")).toHaveText(["CounterA", "CounterA", "CounterB"]);
+    // SEO static-first: the computed {{displayName}} node carries its correct
+    // build-time value with JS disabled (getDisplayName ran at build time).
+    await expect(page.locator(".display")).toHaveText(["COUNTERA", "COUNTERA", "COUNTERB"]);
     const metadata = await page.locator('[type="application/ld+json"]').textContent();
     expect(JSON.parse(metadata!).name).toBe(payload);
     await expect(page.locator("script")).toHaveCount(2);

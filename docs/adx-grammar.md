@@ -156,8 +156,14 @@ getX           → x
 This is a deliberate single-char lowering, **not** a camelCase smart-split, so
 the acronym case is `getURL → uRL` (the rest of `URL` is preserved verbatim). The
 same helper (`bareComputedKey`) that builds the build-time computed scope also
-builds the reactivity freeze set, so the two agree for every input. In an
-expression you therefore write `{{displayName}}`, never `{{getDisplayName}}`.
+derives the runtime computed getter names, so the two agree for every input. In
+an expression you therefore write `{{displayName}}`, never `{{getDisplayName}}`.
+
+A **single bare** computed reference — exactly one `{{displayName}}` text run or
+one `:prop="displayName"` binding — is live at runtime: on handler return the
+glue re-evaluates it by calling the imported `get*` over the live `state`.
+Computed **member chains** (`{{displayName.foo}}`) and **mixed templates**
+(`{{displayName}} ({{count}})`) stay frozen at their build-time value.
 
 ## 5. Expressions (build-time)
 

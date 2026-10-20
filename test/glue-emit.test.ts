@@ -56,3 +56,55 @@ describe("emitGlue (per-instance)", () => {
     expect(glue).not.toMatch(/from\s+["']adx-runtime["']/);
   });
 });
+
+// FEAT-001: a single bare computed {{displayName}} only becomes live glue when
+// a handler is wired. With NO wired @event the computed* instruction is dead
+// weight, so it (and its getter import) are stripped — the glue stays
+// byte-for-byte the pre-feature shape.
+const computedBehavior =
+  "export function setup(p){return p} " +
+  "export function getDisplayName(s){return s.name} " +
+  "export function onClick(){}";
+
+describe("computed-only glue retains getters ONLY when a handler is wired (FEAT-001)", () => {
+  it("drops the computed hook and getter import when no @event is wired", () => {
+    const ctx = makeCtx({
+      state: { name: "Ada" },
+      behaviorSrc: computedBehavior,
+    });
+    const { hooks } = emitHtml(
+      parseStructure("<h2>{{displayName}}</h2>", "structure.adx"),
+      ctx,
+    );
+    const glue = emitGlue(hooks, ctx);
+    // Pre-feature shape: only `setup` imported, no getter import, no GETTERS
+    // map declaration, and the lone computed-only hook is dropped (no event ->
+    // nothing to patch). The shared applyUpdate helper body is unchanged code.
+    expect(glue).toContain('import { setup } from "./behavior.js";');
+    expect(glue).not.toContain("getDisplayName");
+    expect(glue).not.toContain("const GETTERS =");
+    expect(glue).not.toContain('"kind": "computedText"');
+    expect(glue).toContain('"hooks": []');
+  });
+
+  it("imports the getter and retains the computedText update when a handler is wired", () => {
+    const ctx = makeCtx({
+      state: { name: "Ada" },
+      behaviorSrc: computedBehavior,
+    });
+    const { hooks } = emitHtml(
+      parseStructure(
+        '<article @click="onClick"><h2>{{displayName}}</h2></article>',
+        "structure.adx",
+      ),
+      ctx,
+    );
+    const glue = emitGlue(hooks, ctx);
+    expect(glue).toContain(
+      'import { setup, onClick, getDisplayName } from "./behavior.js";',
+    );
+    expect(glue).toContain("const GETTERS = { getDisplayName: getDisplayName };");
+    expect(glue).toContain('"kind": "computedText"');
+    expect(glue).toContain('"get": "getDisplayName"');
+  });
+});

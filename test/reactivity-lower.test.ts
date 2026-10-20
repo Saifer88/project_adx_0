@@ -126,8 +126,13 @@ describe("emitter attaches update instructions", () => {
   });
 });
 
-describe("computed-backed runs are frozen (HIGH-1)", () => {
-  it("emits NO text update for a computed {{displayName}} while a state {{count}} DOES get one", () => {
+// FEAT-001 INTENTIONAL CHANGE (not a regression): single bare computed
+// interpolations / `:prop` bindings are UNFROZEN — they now lower to
+// `computedText`/`computedAttr` instructions carrying the verbatim `get*`
+// export name, which the glue re-evaluates over the live state. Only computed
+// MEMBER CHAINS, MIXED TEMPLATES, and structural runs stay frozen (updates: []).
+describe("single bare computed runs lower to computed* instructions (FEAT-001)", () => {
+  it("emits a computedText for a bare {{displayName}} while a state {{count}} gets a plain text update", () => {
     const src =
       '<div><h2>{{displayName}}</h2><span>{{count}}</span></div>';
     const hooks = hookFor(src, {
@@ -137,11 +142,38 @@ describe("computed-backed runs are frozen (HIGH-1)", () => {
     // Both the <h2> and the <span> are hooked (single interpolated text runs).
     const h2Hook = hooks[0];
     const spanHook = hooks[1];
-    // displayName is a getDisplayName computed -> frozen, no update.
-    expect(h2Hook.updates).toEqual([]);
+    // displayName is a getDisplayName computed -> live computedText via getter.
+    expect(h2Hook.updates).toEqual<UpdateInstr[]>([
+      { kind: "computedText", get: "getDisplayName" },
+    ]);
     // count is state-backed -> live text update.
     expect(spanHook.updates).toEqual<UpdateInstr[]>([
       { kind: "text", expr: { ident: "count" } },
+    ]);
+  });
+
+  it("emits a computedAttr for a bare :src=\"displayName\"", () => {
+    const hooks = hookFor('<img :src="displayName">', {
+      state: { name: "Ada" },
+      behaviorSrc: computedBehavior,
+    });
+    expect(hooks).toHaveLength(1);
+    expect(hooks[0].updates).toEqual<UpdateInstr[]>([
+      { kind: "computedAttr", name: "src", get: "getDisplayName" },
+    ]);
+  });
+
+  it("preserves the acronym get* export name verbatim (getURL -> uRL key -> getURL getter)", () => {
+    const acronymBehavior =
+      "export function setup(p){return p} " +
+      "export function getURL(s){return s.href}";
+    const hooks = hookFor("<a>{{uRL}}</a>", {
+      state: { href: "/x" },
+      behaviorSrc: acronymBehavior,
+    });
+    expect(hooks).toHaveLength(1);
+    expect(hooks[0].updates).toEqual<UpdateInstr[]>([
+      { kind: "computedText", get: "getURL" },
     ]);
   });
 
@@ -163,7 +195,7 @@ describe("computed-backed runs are frozen (HIGH-1)", () => {
     expect(hooks[0].updates).toEqual([]);
   });
 
-  it("freezes a computed-backed :src attribute", () => {
+  it("freezes a computed-backed :src=\"displayName.url\" member chain", () => {
     const hooks = hookFor('<img :src="displayName.url">', {
       state: { name: "Ada" },
       behaviorSrc: computedBehavior,

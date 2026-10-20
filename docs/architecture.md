@@ -353,11 +353,12 @@ HTML script delimiters without changing parsed metadata.
 When a handler returns, the glue re-evaluates and patches **only** the affected
 hooked nodes' text/attributes for **that instance** — no vDOM, no full re-render,
 no `setup()` re-run. The model is deliberately bounded in M2: no structural
-reactivity (`:if`/`:else`/`:for` are build-time only); computed-backed
-interpolations (`{{displayName}}` from a `getDisplayName`) are frozen at their
-build-time value and never live-patched; only `state`/`props`/loop-local
-references update. The first patch after hydration is a no-op for a deterministic
-`setup()`.
+reactivity (`:if`/`:else`/`:for` are build-time only). A SINGLE bare computed
+interpolation/`:prop` (`{{displayName}}` from a `getDisplayName`) re-evaluates on
+handler return via its imported `get*` over the live `state`; computed member
+chains and mixed templates stay frozen at their build-time value. `state`/`props`/
+loop-local references update as before. The first patch after hydration is a
+no-op for a deterministic `setup()`.
 
 ## Quality Enforcement
 

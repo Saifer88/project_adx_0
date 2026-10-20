@@ -306,6 +306,10 @@ export function onInput(state, event) {
 }
 
 // Computed values (must start with 'get')
+// A single bare reference to one — `{{displayName}}` or `:title="displayName"` —
+// is live: after a handler runs, ADX re-calls getDisplayName over the updated
+// state and patches that node. Computed member chains (`{{displayName.foo}}`)
+// and mixed templates stay at their build-time value.
 export function getDisplayName(state) {
   return state.name.toUpperCase()
 }
