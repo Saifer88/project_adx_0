@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -32,6 +33,10 @@ describe("scaffoldProject", () => {
     const written = scaffoldProject(dir);
 
     const expected = [
+      "app-shell/manifest.json",
+      "app-shell/structure.adx",
+      "app-shell/behavior.adx.js",
+      "app-shell/style.adx.css",
       "hello-card/manifest.json",
       "hello-card/structure.adx",
       "hello-card/behavior.adx.js",
@@ -106,7 +111,8 @@ describe("scaffoldProject", () => {
 
     expect(() => scaffoldProject(dir)).toThrow(/^\[ADX\] .* already exists/);
 
-    // No other scaffold file was created.
+    // No other scaffold file was created (including the new app-shell files).
+    expect(existsSync(join(dir, "app-shell", "manifest.json"))).toBe(false);
     expect(existsSync(join(dir, "hello-card", "manifest.json"))).toBe(false);
     expect(existsSync(join(dir, "tokens", "design-tokens.json"))).toBe(false);
     expect(existsSync(join(dir, "README.md"))).toBe(false);
@@ -138,10 +144,31 @@ describe("scaffoldProject", () => {
     expect(result.html).toContain("Welcome to your new ADX project.");
     expect(result.html).not.toContain("{{");
     expect(result.css).not.toContain("tokens.");
-    // The card title is the page's main heading: it must be an <h1>, and the
-    // Dismiss control must carry a token-sized min-height for the touch target.
-    expect(result.html).toContain("<h1");
+    // The card renders inside app-shell's content region (the shell header owns
+    // the page <h1>), so the card title is an <h2>; the Dismiss control must
+    // carry a token-sized min-height for the touch target.
+    expect(result.html).toContain("<h2");
     expect(result.css).toContain("min-height");
+  });
+
+  it("scaffolds an app-shell root that composes the card and owns the single <h1>", () => {
+    scaffoldProject(dir);
+
+    const result = compileComponent(join(dir, "app-shell"), {
+      tokensPath: join(dir, "tokens", "design-tokens.json"),
+    });
+
+    // No data: every app-shell prop defaults, so it compiles clean.
+    expect(result.html).toContain("My ADX App");
+    // The composed child renders inside app-shell's content region.
+    expect(result.html).toContain("Welcome to your new ADX project.");
+    expect(result.html).not.toContain("{{");
+    expect(result.css).not.toContain("tokens.");
+    // Semantic layout regions, with the single <h1> in the header.
+    expect(result.html).toContain("<header");
+    expect(result.html).toContain("<footer");
+    const h1Count = (result.html.match(/<h1[\s>]/g) ?? []).length;
+    expect(h1Count).toBe(1);
   });
 
   it("scaffolds a page that compiles to the real greeting at the site root", () => {
@@ -155,11 +182,17 @@ describe("scaffoldProject", () => {
     expect(result.html).toContain("Welcome to your new ADX project.");
     expect(result.html).toContain("<!DOCTYPE html>");
     expect(result.html).not.toContain("{{");
-    // Heading hierarchy: exactly one <h1> on the page, and no <h2> (which would
-    // skip level one for this single-card starter). Pins the SEO/a11y baseline.
+    // Heading hierarchy (SEO/a11y baseline): exactly one <h1> — the app-shell
+    // header's app title — plus at least one <h2> (the composed card title),
+    // and no <h3> (no skipped level in the starter).
     const h1Count = (result.html.match(/<h1[\s>]/g) ?? []).length;
     expect(h1Count).toBe(1);
-    expect(result.html).not.toMatch(/<h2[\s>]/);
+    expect(result.html).toMatch(/<h2[\s>]/);
+    expect(result.html).not.toMatch(/<h3[\s>]/);
+    // Semantic layout regions are present as static markup (crawlable).
+    expect(result.html).toContain("<header");
+    expect(result.html).toContain("<footer");
+    expect(result.html).toContain("My ADX App");
   });
 
   it("compiles the agent reference's four-file example verbatim", () => {
@@ -187,6 +220,85 @@ describe("scaffoldProject", () => {
     expect(result.html).not.toContain("{{");
     expect(result.css).not.toContain("tokens.");
     expect(result.glue).toContain("onIncrement");
+  });
+
+  describe("--tailwind", () => {
+    it("default (no flag) writes no Tailwind files or dependencies", () => {
+      scaffoldProject(dir);
+
+      expect(existsSync(join(dir, "styles", "tailwind.css"))).toBe(false);
+      const app = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+      expect(app.devDependencies.tailwindcss).toBeUndefined();
+      expect(app.devDependencies["@tailwindcss/cli"]).toBeUndefined();
+      expect(app.scripts.tailwind).toBeUndefined();
+      expect(app.scripts.build).toBe("adx build index.json");
+      // The default page carries no assets block.
+      const page = JSON.parse(readFileSync(join(dir, "index.json"), "utf8"));
+      expect(page.assets).toBeUndefined();
+    });
+
+    it("writes the Tailwind input source only when the flag is set", () => {
+      const written = scaffoldProject(dir, { tailwind: true });
+
+      expect(written).toContain("styles/tailwind.css");
+      const input = readFileSync(join(dir, "styles", "tailwind.css"), "utf8");
+      expect(input).toContain('@import "tailwindcss"');
+    });
+
+    it("pins Tailwind to the framework's own exact versions with a build script", () => {
+      scaffoldProject(dir, { tailwind: true });
+      const framework = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+      const app = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+
+      // Pinned EXACTLY to the CLI's own devDependency versions (read, not hardcoded).
+      expect(app.devDependencies.tailwindcss).toBe(framework.devDependencies.tailwindcss);
+      expect(app.devDependencies["@tailwindcss/cli"]).toBe(
+        framework.devDependencies["@tailwindcss/cli"],
+      );
+      // The local ADX pin is preserved alongside Tailwind.
+      expect(app.devDependencies[framework.name]).toBe(framework.version);
+      // A tailwind script compiles the input, and build runs it before adx build.
+      expect(app.scripts.tailwind).toBe(
+        "@tailwindcss/cli -i styles/tailwind.css -o dist/tailwind.css --minify",
+      );
+      expect(app.scripts.build).toBe("npm run tailwind && adx build index.json");
+      // init never installs.
+      expect(existsSync(join(dir, "node_modules"))).toBe(false);
+      expect(existsSync(join(dir, "package-lock.json"))).toBe(false);
+    });
+
+    it("references the compiled tailwind.css from the page and still compiles with no data", () => {
+      scaffoldProject(dir, { tailwind: true });
+      const page = JSON.parse(readFileSync(join(dir, "index.json"), "utf8"));
+      expect(page.assets.css).toContain("/tailwind.css");
+
+      // The page compiles with no --data (every prop defaults); assets are
+      // referenced, not required to exist on disk.
+      const result = compilePage(join(dir, "index.json"), {
+        tokensPath: join(dir, "tokens", "design-tokens.json"),
+      });
+      expect(result.html).toContain("Welcome to your new ADX project.");
+      expect(result.html).not.toContain("{{");
+      expect(result.html).toContain("/tailwind.css");
+    });
+
+    it.each(["styles/tailwind.css", "index.json"])(
+      "refuses to overwrite %s in a --tailwind run and writes nothing",
+      (filename) => {
+        const abs = join(dir, filename);
+        // Pre-create the conflicting target (its parent dir may need creating).
+        mkdirSync(dirname(abs), { recursive: true });
+        writeFileSync(abs, "existing content", "utf8");
+
+        expect(() => scaffoldProject(dir, { tailwind: true })).toThrow(
+          /^\[ADX\] .* already exists/,
+        );
+
+        // No OTHER scaffold file was created.
+        expect(existsSync(join(dir, "app-shell", "manifest.json"))).toBe(false);
+        expect(readFileSync(abs, "utf8")).toBe("existing content");
+      },
+    );
   });
 });
 
@@ -253,6 +365,50 @@ describe("adx init CLI dispatch", () => {
     );
     const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
     expect(printed).toContain("cd my-app");
+  });
+
+  it("wires Tailwind with `init --tailwind` and prints the tailwind step", () => {
+    process.chdir(cwd);
+    const code = run({
+      command: "init",
+      dir: "tw-app",
+      out: "dist",
+      tokens: undefined,
+      data: undefined,
+      port: undefined,
+      host: undefined,
+      tailwind: true,
+    });
+
+    expect(code).toBe(0);
+    expect(existsSync(join(cwd, "tw-app", "styles", "tailwind.css"))).toBe(true);
+    const app = JSON.parse(readFileSync(join(cwd, "tw-app", "package.json"), "utf8"));
+    expect(app.devDependencies.tailwindcss).toBeDefined();
+    expect(app.scripts.tailwind).toBeDefined();
+    const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
+    expect(printed).toContain("npm run tailwind");
+    // init never installs.
+    expect(existsSync(join(cwd, "tw-app", "node_modules"))).toBe(false);
+  });
+
+  it("omits Tailwind entirely for a default `init` (no flag)", () => {
+    process.chdir(cwd);
+    const code = run({
+      command: "init",
+      dir: "plain-app",
+      out: "dist",
+      tokens: undefined,
+      data: undefined,
+      port: undefined,
+      host: undefined,
+    });
+
+    expect(code).toBe(0);
+    expect(existsSync(join(cwd, "plain-app", "styles", "tailwind.css"))).toBe(false);
+    const app = JSON.parse(readFileSync(join(cwd, "plain-app", "package.json"), "utf8"));
+    expect(app.devDependencies.tailwindcss).toBeUndefined();
+    const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
+    expect(printed).not.toContain("npm run tailwind");
   });
 
   it("returns 1 with the [ADX] clobber error when the target already has a scaffold file", () => {

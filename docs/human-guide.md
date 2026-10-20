@@ -605,7 +605,7 @@ Milestones 1 and 2 (plus the shipped scaffolders) provide the init/create/patter
 
 ```bash
 # Working today (M1 + M2)
-adx init [name]                                                       # scaffold a new starter project (./<name>, or the current dir)
+adx init [name] [--tailwind]                                          # scaffold an app-shell starter (./<name>, or the current dir); --tailwind pins Tailwind
 adx create <component-name>                                           # scaffold one new component into the current project
 adx pattern [<name>] [targetDir] [--list]                             # scaffold an accessible built-in pattern (form, table, modal)
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
@@ -659,9 +659,14 @@ separator, `..`) is rejected with an `[ADX] … invalid component name` error.
 
 ### Start a new project
 
-The quickest way in is `adx init`. It creates a starter component, page, tokens,
-README, `AGENTS.md`, `.gitignore`, and a private `package.json` with npm scripts and a local
-ADX development dependency pinned to the generating CLI's version:
+The quickest way in is `adx init`. It creates a root layout component
+`app-shell/` (semantic header/main/footer) that composes a `hello-card/` in its
+content region, a page (`index.json`) placing `app-shell` at the site root,
+tokens, README, `AGENTS.md`, `.gitignore`, and a private `package.json` with npm
+scripts and a local ADX development dependency pinned to the generating CLI's
+version. Add `--tailwind` to also pin Tailwind (exact) and wire the build-time
+static-CSS path (`styles/tailwind.css`, a `tailwind` npm script, and an
+`assets.css` reference) ready to install — it still only writes files:
 
 ```bash
 npx --yes --package project-adx-0 adx init my-app
@@ -857,7 +862,12 @@ ADX runtime dependency.
 
 #### Tailwind v4: runnable starter
 
-Create an app (skip `init` for an existing app):
+The fastest route is `adx init my-app --tailwind`, which pins Tailwind, writes
+`styles/tailwind.css`, adds a `tailwind` npm script that `npm run build` runs
+before `adx build`, and references `/tailwind.css` from `index.json` via
+`assets.css` (no `site.json` needed). Then `npm install` and `npm run build`.
+
+To wire it by hand instead, create an app (skip `init` for an existing app):
 
 ```bash
 npx --yes --package project-adx-0 adx init my-app
@@ -875,11 +885,12 @@ root relative to this stylesheet, including `.adx`, JavaScript and JSON files:
 
 Replace `hello-card/structure.adx` with this utility-only example, and empty
 `hello-card/style.adx.css` so no component declarations compete. Keep the
-starter manifest, behavior and page files unchanged.
+starter manifest, behavior and page files unchanged. The card title stays an
+`<h2>` (the `app-shell/` header owns the page's single `<h1>`):
 
 ```adx
 <section class="p-2.5 md:grid gap-4">
-  <h1 class="text-2xl font-bold">Hello, Tailwind</h1>
+  <h2 class="text-2xl font-bold">Hello, Tailwind</h2>
   <a href="#details" class="hover:underline">Read more</a>
   <p id="details" class="w-1/2">Static HTML, static CSS.</p>
 </section>

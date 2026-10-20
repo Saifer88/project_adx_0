@@ -160,6 +160,19 @@ describe("parseArgs is unchanged by the new commands", () => {
     expect(args.tokens).toBe("custom/tokens.json");
   });
 
+  it("gates --tailwind to the init command only", () => {
+    const inited = parseArgs(["init", "my-app", "--tailwind"]);
+    expect(inited.tailwind).toBe(true);
+    expect(inited.dir).toBe("my-app");
+
+    // A bare `init --tailwind` still parses the flag (no positional name).
+    expect(parseArgs(["init", "--tailwind"]).tailwind).toBe(true);
+
+    // For every other command it stays an unknown `--` token, left undefined.
+    expect(parseArgs(["build", "page.json", "--tailwind"]).tailwind).toBeUndefined();
+    expect(parseArgs(["create", "foo", "--tailwind"]).tailwind).toBeUndefined();
+  });
+
   it("stores --site only for build/check", () => {
     expect(parseArgs(["build", "page.json", "--site", "site.json"]).site).toBe(
       "site.json",

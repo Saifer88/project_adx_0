@@ -55,10 +55,19 @@ npm run build
 npm run serve
 ```
 
-Open the printed URL (by default `http://localhost:3000/`). Edit the files in
-`hello-card/` and the page metadata/data in `index.json`, then run
-`npm run check` and `npm run build` again and refresh the browser. `serve`
-only serves compiled files; it does not rebuild or hot reload. Stop it with Ctrl+C.
+Open the printed URL (by default `http://localhost:3000/`). The starter is a
+root layout component `app-shell/` (semantic header/main/footer) that composes
+`hello-card/` in its content region; `index.json` places `app-shell` at the site
+root. Edit `app-shell/` and `hello-card/`, or the page metadata/data in
+`index.json`, then run `npm run check` and `npm run build` again and refresh the
+browser. `serve` only serves compiled files; it does not rebuild or hot reload.
+Stop it with Ctrl+C.
+
+To wire Tailwind into the starter, scaffold with
+`npx --yes --package project-adx-0 adx init my-app --tailwind`: it pins Tailwind
+as an exact dev dependency and adds the build-time static-CSS wiring (an input
+`styles/tailwind.css`, a `tailwind` npm script, and an `assets.css` reference)
+ready to install. `init` never runs npm. See [Using Tailwind](#using-tailwind-or-any-css-library).
 
 ### Share or clone the project
 
@@ -122,17 +131,23 @@ tracks `main`. See the guide for local and global installation paths.
 
 ```text
 my-app/
+	app-shell/               Root layout component (semantic header/main/footer)
+		manifest.json          Props, events, slots, and composed deps (hello-card)
+		structure.adx          Markup, bindings, and the composed <hello-card/>
+		behavior.adx.js        Setup and synchronous event handlers
+		style.adx.css          Styles using design tokens
 	hello-card/
 		manifest.json          Component props, events, and slots
 		structure.adx          Markup and bindings
 		behavior.adx.js        Setup and synchronous event handlers
 		style.adx.css          Styles using design tokens
-	index.json               Page metadata and component data
+	index.json               Page metadata; places app-shell at the site root
 	package.json             Pinned ADX dependency and npm scripts
 	package-lock.json        Created by npm install; commit it
 	.gitignore               Excludes dependencies and build output
 	AGENTS.md                AI defaults, app boundaries, and CLI setup
 	tokens/design-tokens.json
+	styles/tailwind.css      Only with --tailwind: Tailwind input source
 	node_modules/            Installed dependencies; do not edit
 	dist/                    Generated output; do not edit
 ```
@@ -144,7 +159,7 @@ grows. Edit source files, check, build, and refresh the preview.
 
 | Command | Purpose |
 | :--- | :--- |
-| `adx init [name]` | Create an npm-ready starter with a pinned local ADX dependency; never overwrites scaffold files. |
+| `adx init [name] [--tailwind]` | Create an npm-ready app-shell starter (root layout composing `hello-card`) with a pinned local ADX dependency; never overwrites. `--tailwind` also pins Tailwind + wires the build-time static CSS. |
 | `adx create <component-name>` | Scaffold one new four-file component into the current project; never overwrites. |
 | `adx check <componentDir\|page.json>` | Validate in memory; exits 0 on success or 1 with an `[ADX]` error. |
 | `adx build <componentDir\|page.json>` | Generate static HTML, scoped CSS, and hydration JavaScript. |
@@ -182,6 +197,13 @@ Tailwind v4 utilities. Use literal `class="..."` attributes and avoid competing
 declarations, or explicitly opt into important utilities. Do not inject the
 Play CDN runtime into a component. Follow the
 [Tailwind v4 recipe](docs/agent-reference.md#external-design-library-assets).
+
+Scaffolding with `adx init <name> --tailwind` wires this recipe for you: it pins
+`tailwindcss` and `@tailwindcss/cli` as exact dev dependencies, writes the input
+`styles/tailwind.css`, adds a `tailwind` npm script (compiling to
+`dist/tailwind.css`) that `npm run build` runs before `adx build`, and adds the
+`assets.css` reference to `index.json`. It only writes files — run `npm install`,
+then `npm run build`, yourself.
 
 ## Documentation
 

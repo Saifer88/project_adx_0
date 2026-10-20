@@ -5,10 +5,18 @@
  * fixtures. Package metadata is read from the generating CLI's installation,
  * not CWD, to pin the starter's local dependency to that exact release.
  *
- * The starter is deliberately minimal but COMPLETE: one component
- * (`hello-card/`) whose props all have defaults (so `adx build hello-card`
- * succeeds with no `--data`), a page manifest (`index.json`) that places the
- * component at the site root, design tokens, npm scripts, and a short README.
+ * The starter is deliberately minimal but COMPLETE: a root layout component
+ * (`app-shell/`) that renders semantic header/main/footer regions and composes
+ * `hello-card/` in its content region, a page manifest (`index.json`) placing
+ * `app-shell` at the site root, design tokens, npm scripts, and a short README.
+ * Every prop defaults, so `adx check index.json` / `adx build index.json`
+ * succeed with no `--data`.
+ *
+ * `scaffoldProject(dir, { tailwind: true })` (CLI: `adx init <name> --tailwind`)
+ * additionally pins Tailwind as an EXACT dev dependency and wires the build-time
+ * static-CSS path (an input `styles/tailwind.css`, a `tailwind` npm script, and
+ * an `assets.css` reference to the compiled `dist/tailwind.css`). It still only
+ * WRITES files — it never runs npm or the Tailwind CLI.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -34,13 +42,13 @@ const MANIFEST = `{
 
 /**
  * `hello-card/structure.adx` — semantic card, token-styled, interpolated text.
- * The card title is the single-card starter page's main heading, so it is an
- * `<h1>`: the compiled page then has exactly one `<h1>` and never skips a
- * heading level (SEO/a11y baseline). A multi-card page would reserve the `<h1>`
- * for a page header and demote this; the minimal starter has only this card.
+ * The card renders inside `app-shell`'s content region. The shell's `<header>`
+ * owns the page's single `<h1>`, so the card title is an `<h2>` (a card heading
+ * under the page header) — the compiled page then has exactly one `<h1>` and
+ * never skips a heading level (SEO/a11y baseline).
  */
 const STRUCTURE = `<article .card>
-  <h1 .title>{{title}}</h1>
+  <h2 .title>{{title}}</h2>
   <p .message>{{message}}</p>
   <button .dismiss type="button" @click="onDismiss">Dismiss</button>
 </article>
@@ -110,7 +118,123 @@ const STYLE = `@use tokens;
 }
 `;
 
-/** `index.json` — a page placing the starter component at the site root. */
+/**
+ * `app-shell/manifest.json` — the ROOT layout component. Every prop defaults
+ * (so `adx check index.json` passes with no `--data`), it emits nothing, and it
+ * composes `hello-card` via `deps` (the kebab element name `<hello-card/>` in
+ * `structure.adx` must appear in this list). `slots` is `[]` on purpose — see
+ * the note in `app-shell/structure.adx`.
+ */
+const APP_SHELL_MANIFEST = `{
+  "name": "AppShell",
+  "version": "1.0.0",
+  "props": {
+    "appName": { "type": "string", "default": "My ADX App" },
+    "tagline": {
+      "type": "string",
+      "default": "Your app shell: header, main content, and footer."
+    },
+    "year": { "type": "string", "default": "2025" }
+  },
+  "emits": [],
+  "slots": [],
+  "deps": ["../hello-card"],
+  "seo": { "title": "My ADX App", "schema": "WebPage" }
+}
+`;
+
+/**
+ * `app-shell/structure.adx` — the ROOT layout: semantic header / content /
+ * footer regions with the single page `<h1>` in the header, composing
+ * `hello-card` in the content region.
+ *
+ * NOTE: these are real semantic layout REGIONS, not ADX `<slot>` outlets. The
+ * page manifest places `app-shell` as a top-level component, and a top-level
+ * component has no parent to fill its slots — a declared `<slot/>` would leak an
+ * unfilled placeholder into the page. So the shell renders its regions directly
+ * and composes the child in `<section .app-content>`. Copy this file and swap
+ * the child/content for your own layout root.
+ *
+ * The outer wrapper is a `<div>` (NOT a second `<main>`): the page document
+ * wrapper already emits the page `<main>`, so a nested `<main>` would duplicate
+ * the landmark.
+ */
+const APP_SHELL_STRUCTURE = `<div .app-shell>
+  <header .app-header>
+    <h1 .app-title>{{appName}}</h1>
+    <p .app-tagline>{{tagline}}</p>
+  </header>
+  <section .app-content>
+    <hello-card />
+  </section>
+  <footer .app-footer>
+    <p .app-footer-text>&copy; {{year}} {{appName}}. Built with ADX.</p>
+  </footer>
+</div>
+`;
+
+/** `app-shell/behavior.adx.js` — pure `setup`; no emits. */
+const APP_SHELL_BEHAVIOR = `export function setup(props) {
+  return {
+    appName: props.appName,
+    tagline: props.tagline,
+    year: props.year
+  }
+}
+`;
+
+/** `app-shell/style.adx.css` — token-only layout styles (no hardcoded hex). */
+const APP_SHELL_STYLE = `@use tokens;
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: tokens.space-8;
+  min-height: 100vh;
+  pad: tokens.space-8 tokens.space-4;
+  bg: tokens.surface-1;
+}
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  gap: tokens.space-2;
+}
+
+.app-title {
+  margin: 0;
+  size: tokens.text-3xl;
+  weight: tokens.weight-bold;
+  color: tokens.text-1;
+}
+
+.app-tagline {
+  margin: 0;
+  size: tokens.text-lg;
+  color: tokens.text-2;
+  line-height: 1.5;
+}
+
+.app-content {
+  /* Readable centered measure so content never runs edge-to-edge on wide
+     screens (UX baseline). */
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.app-footer {
+  margin-top: auto;
+}
+
+.app-footer-text {
+  margin: 0;
+  size: tokens.text-sm;
+  color: tokens.text-3;
+}
+`;
+
+/** `index.json` — a page composing the `app-shell` root at the site root. */
 const PAGE = `{
   "page": "index",
   "title": "My ADX App",
@@ -119,14 +243,50 @@ const PAGE = `{
   "schema": "WebPage",
   "components": [
     {
-      "use": "./hello-card",
+      "use": "./app-shell",
       "data": {
-        "title": "Hello, ADX",
-        "message": "Welcome to your new ADX project."
+        "appName": "My ADX App",
+        "tagline": "Your app shell: header, main content, and footer."
       }
     }
   ]
 }
+`;
+
+/**
+ * Tailwind-aware `index.json` — identical to `PAGE` but adds the `assets` block
+ * so the compiled page links the Tailwind output (`dist/tailwind.css`, produced
+ * by `npm run tailwind`) AFTER ADX's own stylesheet. ADX never generates or
+ * checks this file; the URL resolves against the emitted document at
+ * `dist/tailwind.css`.
+ */
+const PAGE_TAILWIND = `{
+  "page": "index",
+  "title": "My ADX App",
+  "description": "A new project scaffolded with adx init.",
+  "lang": "en",
+  "schema": "WebPage",
+  "assets": {
+    "css": ["/tailwind.css"]
+  },
+  "components": [
+    {
+      "use": "./app-shell",
+      "data": {
+        "appName": "My ADX App",
+        "tagline": "Your app shell: header, main content, and footer."
+      }
+    }
+  ]
+}
+`;
+
+/**
+ * `styles/tailwind.css` — the Tailwind v4 input source (build-time static CSS,
+ * NOT the Play CDN). `npm run tailwind` compiles this to `dist/tailwind.css`;
+ * `adx init` only writes this file and pins the CLI — it never runs Tailwind.
+ */
+const TAILWIND_INPUT = `@import "tailwindcss" source("../");
 `;
 
 /**
@@ -200,9 +360,11 @@ const TOKENS = `{
 
 const README = `# ADX starter
 
-A minimal project scaffolded with \`adx init\`. It has one component
-(\`hello-card/\`) and one page (\`index.json\`) that places the component at the
-site root, plus editable design tokens.
+A minimal project scaffolded with \`adx init\`. It has a root layout component
+(\`app-shell/\`) that renders semantic header/main/footer regions and composes
+\`hello-card/\` in its content region, a page (\`index.json\`) that places
+\`app-shell\` at the site root, plus editable design tokens. Copy \`app-shell/\`
+as the template for your own layout root.
 
 ## Install, build, and preview
 
@@ -249,6 +411,27 @@ The package name is \`project-adx-0\`; \`adx\` is its local executable.
 Read the installed \`node_modules/project-adx-0/docs/agent-reference.md\` for
 guidance matching this version. Build/check execute component JavaScript;
 compile only trusted components.
+
+## Tailwind CSS (only if scaffolded with \`--tailwind\`)
+
+If you created this project with \`adx init <name> --tailwind\`, the
+\`package.json\` already pins \`tailwindcss\` and \`@tailwindcss/cli\` as exact dev
+dependencies (not yet installed) and \`styles/tailwind.css\` holds the Tailwind
+input. \`npm install\` installs them. The \`tailwind\` npm script compiles the
+input to \`dist/tailwind.css\`, and \`npm run build\` runs it before \`adx build\`
+so the compiled CSS exists where \`index.json\` references it (via
+\`assets.css: ["/tailwind.css"]\`, linked after ADX's own styles):
+
+\`\`\`sh
+npm install
+npm run tailwind    # compile styles/tailwind.css -> dist/tailwind.css
+npm run build       # runs tailwind, then compiles the page
+\`\`\`
+
+Write Tailwind utilities as literal \`class="..."\` in markup; keep Tailwind
+directives in \`styles/tailwind.css\`, never in a component's \`style.adx.css\`.
+If you did NOT use \`--tailwind\`, ignore this section — the default starter has
+no Tailwind dependency.
 `;
 
 const AGENTS = `# ADX frontend instructions
@@ -268,6 +451,9 @@ Otherwise follow these rules directly:
 
 ## Application scope
 
+- \`app-shell/\` is the root layout component (semantic header/main/footer) that
+  composes the page's content; \`index.json\` places it at the site root. Add
+  components by composing them into \`app-shell\` or placing them on a page.
 - Work on this app's components, pages, assets, and design tokens.
 - Treat the ADX compiler and CLI as dependencies, not application source.
 - Do not edit \`node_modules/\`, the installed ADX package, or generated \`dist/\`
@@ -298,7 +484,20 @@ Otherwise follow these rules directly:
 - Build/check execute component JavaScript. Compile only trusted components.
 `;
 
-function packageJson(): string {
+/**
+ * Build the starter `package.json`, reading name/version/engines (and, when
+ * `tailwind` is set, the pinned Tailwind versions) from the generating CLI's
+ * OWN `../package.json` so the starter tracks this exact release — never
+ * hardcoded. A throwing read/validation writes nothing (thunks resolve before
+ * `writeFileSet`).
+ *
+ * With `tailwind`, it additionally pins `tailwindcss` and `@tailwindcss/cli`
+ * (the EXACT versions this CLI pins), adds a `tailwind` script that compiles
+ * `styles/tailwind.css` -> `dist/tailwind.css`, and makes `build` run the
+ * Tailwind CLI before `adx build` so the referenced CSS exists. `adx init`
+ * still only writes files; it never installs or runs Tailwind.
+ */
+function packageJson(tailwind = false): string {
   const file = fileURLToPath(new URL("../package.json", import.meta.url));
   let metadata: unknown;
   try {
@@ -315,27 +514,59 @@ function packageJson(): string {
   ) {
     throw adxFileError(file, "ADX package metadata must include name, version, and engines.node");
   }
+
+  const devDependencies: Record<string, string> = { [metadata.name]: metadata.version };
+  const scripts: Record<string, string> = {
+    build: "adx build index.json",
+    check: "adx check index.json",
+    serve: "adx serve dist",
+  };
+
+  if (tailwind) {
+    // Read the CLI's OWN pinned Tailwind versions (exact strings) so the
+    // starter tracks this release rather than a hardcoded guess. A broken
+    // install (either key missing) throws the standard `[ADX]` error, so the
+    // scaffold writes nothing.
+    const devDeps =
+      "devDependencies" in metadata && typeof metadata.devDependencies === "object" && metadata.devDependencies !== null
+        ? (metadata.devDependencies as Record<string, unknown>)
+        : {};
+    const tailwindcss = devDeps["tailwindcss"];
+    const tailwindCli = devDeps["@tailwindcss/cli"];
+    if (typeof tailwindcss !== "string" || !tailwindcss || typeof tailwindCli !== "string" || !tailwindCli) {
+      throw adxFileError(file, "ADX package metadata must pin devDependencies tailwindcss and @tailwindcss/cli for --tailwind");
+    }
+    devDependencies["tailwindcss"] = tailwindcss;
+    devDependencies["@tailwindcss/cli"] = tailwindCli;
+    // Compile the Tailwind input to where index.json references it, before the
+    // adx build (adx build does not clean dist, so both outputs coexist).
+    scripts.tailwind = "@tailwindcss/cli -i styles/tailwind.css -o dist/tailwind.css --minify";
+    scripts.build = "npm run tailwind && adx build index.json";
+  }
+
   return JSON.stringify({
     name: "adx-app",
     version: "0.0.0",
     private: true,
     type: "module",
-    scripts: {
-      build: "adx build index.json",
-      check: "adx check index.json",
-      serve: "adx serve dist",
-    },
-    devDependencies: { [metadata.name]: metadata.version },
+    scripts,
+    devDependencies,
     engines: { node: metadata.engines.node },
   }, null, 2) + "\n";
 }
 
 /**
- * The complete scaffold file set, as `{ path, contents }` with POSIX-relative
- * paths. This same list drives the clobber guard: if ANY of these already
- * exists under the target, the scaffolder refuses and writes nothing.
+ * The BASE (no-flag) scaffold file set, as `{ path, contents }` with
+ * POSIX-relative paths. This same list drives the clobber guard: if ANY of
+ * these already exists under the target, the scaffolder refuses and writes
+ * nothing. `--tailwind` does NOT mutate this constant — `scaffoldProject`
+ * layers the Tailwind-aware overrides on top of this base (see below).
  */
 export const SCAFFOLD_FILES: { path: string; contents: string | (() => string) }[] = [
+  { path: "app-shell/manifest.json", contents: APP_SHELL_MANIFEST },
+  { path: "app-shell/structure.adx", contents: APP_SHELL_STRUCTURE },
+  { path: "app-shell/behavior.adx.js", contents: APP_SHELL_BEHAVIOR },
+  { path: "app-shell/style.adx.css", contents: APP_SHELL_STYLE },
   { path: "hello-card/manifest.json", contents: MANIFEST },
   { path: "hello-card/structure.adx", contents: STRUCTURE },
   { path: "hello-card/behavior.adx.js", contents: BEHAVIOR },
@@ -397,17 +628,44 @@ export function writeFileSet(
  * creating any directory or writing any file — so a conflict leaves the target
  * untouched (no partial overwrite). An empty or non-existent target is fine.
  *
+ * With `opts.tailwind`, the Tailwind-aware overrides are LAYERED on the base
+ * `SCAFFOLD_FILES` set: the `package.json` thunk pins Tailwind + adds the build
+ * script, `index.json` gains the `assets.css` reference, and `styles/
+ * tailwind.css` is appended. The full assembled set still passes through
+ * `writeFileSet`, so the clobber / no-partial-write guard covers every file.
+ * `adx init` only WRITES files — it never installs or runs Tailwind.
+ *
  * On success, creates the target (recursively), writes every file, and returns
  * the list of written relative paths in a stable order.
  *
  * @param targetDir  Absolute or CWD-relative directory to scaffold into.
+ * @param opts        `{ tailwind?: boolean }` — layer in the Tailwind wiring.
  * @returns the relative paths written, in scaffold order.
  */
-export function scaffoldProject(targetDir: string): string[] {
+export function scaffoldProject(
+  targetDir: string,
+  opts: { tailwind?: boolean } = {},
+): string[] {
+  // Start from the base set; when --tailwind, swap the package.json/index.json
+  // entries and append the Tailwind input. SCAFFOLD_FILES itself is never
+  // mutated (the "single source of truth" list test asserts the base set).
+  const entries = SCAFFOLD_FILES.map((file) => {
+    if (opts.tailwind && file.path === "package.json") {
+      return { path: file.path, contents: () => packageJson(true) };
+    }
+    if (opts.tailwind && file.path === "index.json") {
+      return { path: file.path, contents: PAGE_TAILWIND };
+    }
+    return file;
+  });
+  if (opts.tailwind) {
+    entries.push({ path: "styles/tailwind.css", contents: TAILWIND_INPUT });
+  }
+
   // Resolve every thunk into a concrete string BEFORE writing, so a broken
   // installation (e.g. a throwing packageJson()) leaves nothing partially
   // written. Thunk resolution must stay before the write loop in writeFileSet.
-  const files = SCAFFOLD_FILES.map((file) => ({
+  const files = entries.map((file) => ({
     path: file.path,
     contents: typeof file.contents === "function" ? file.contents() : file.contents,
   }));

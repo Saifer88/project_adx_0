@@ -13,10 +13,15 @@
  *       Validates + emits in-memory, writes nothing. Prints "OK" and exits 0 on
  *       success, or the `[ADX] ...` error and exits 1 on failure.
  *
- *   adx init [name]
- *       Scaffolds a new, minimal ADX starter project (one `hello-card`
- *       component, a page, tokens, npm files, AGENTS.md, and a README) into
- *       `./<name>` — or the current directory when `name` is omitted or `.`.
+ *   adx init [name] [--tailwind]
+ *       Scaffolds a new, minimal ADX starter project into `./<name>` — or the
+ *       current directory when `name` is omitted or `.`. The starter is a root
+ *       layout component (`app-shell/`, semantic header/main/footer) composing
+ *       `hello-card/` in its content region, plus a page, tokens, npm files,
+ *       AGENTS.md, and a README. `--tailwind` additionally pins Tailwind as an
+ *       exact dev dependency and wires the build-time static-CSS path (an input
+ *       `styles/tailwind.css`, a `tailwind` npm script, and an `assets.css`
+ *       reference) READY to install — it still never runs npm or the network.
  *       One-shot: it refuses to overwrite an existing scaffold file (writing
  *       nothing on conflict), prints what it created plus the next steps, and
  *       exits 0 on success / 1 on error, like `build`/`check`.
@@ -107,6 +112,9 @@ interface ParsedArgs {
   // dir for `adx pattern <name> <targetDir>`), additive for other commands.
   list?: boolean;
   dir2?: string;
+  // init-only boolean flag (`adx init <name> --tailwind`). OPTIONAL like
+  // `list?`, so existing ParsedArgs literals in tests stay type-complete.
+  tailwind?: boolean;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -129,6 +137,9 @@ function parseArgs(argv: string[]): ParsedArgs {
   // gating): for every other command it stays an unknown `--` token and is
   // skipped, so their arg handling is byte-for-byte as before.
   const isPattern = command === "pattern";
+  // `--tailwind` is an init-only boolean flag, gated the same way: for every
+  // other command it stays an unknown `--` token and is skipped.
+  const isInit = command === "init";
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === "--out") {
@@ -155,6 +166,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.host = rest[++i];
     } else if (isPattern && arg === "--list") {
       parsed.list = true;
+    } else if (isInit && arg === "--tailwind") {
+      parsed.tailwind = true;
     } else if (!arg.startsWith("--") && parsed.dir === undefined) {
       parsed.dir = arg;
     } else if (!arg.startsWith("--") && parsed.dir2 === undefined) {
@@ -194,8 +207,9 @@ function loadData(path: string): Record<string, unknown> {
 // the invocation line plus a one-line description.
 const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   {
-    invocation: "adx init [name]",
-    description: "Scaffold an npm-ready starter into ./<name> (or CWD).",
+    invocation: "adx init [name] [--tailwind]",
+    description:
+      "Scaffold an npm-ready app-shell starter into ./<name> (or CWD); --tailwind pins Tailwind.",
   },
   {
     invocation: "adx create <component-name>",
@@ -556,7 +570,7 @@ function writeComponentAssets(outDir: string, components: ComponentAsset[]): voi
 function runInit(args: ParsedArgs): number {
   const target = args.dir ?? ".";
   const base = resolve(target);
-  const created = scaffoldProject(target);
+  const created = scaffoldProject(target, { tailwind: args.tailwind });
 
   const out: string[] = [];
   out.push(`Created ADX project in ${base}`);
@@ -569,6 +583,9 @@ function runInit(args: ParsedArgs): number {
     out.push(`  cd ${target}`);
   }
   out.push(`  npm install            # install the pinned local ADX dependency`);
+  if (args.tailwind) {
+    out.push(`  npm run tailwind       # compile styles/tailwind.css -> dist/tailwind.css`);
+  }
   out.push(`  npm run check`);
   out.push(`  npm run build          # compile the page -> dist/index.html`);
   out.push(`  npm run serve          # preview locally at http://localhost:3000/`);

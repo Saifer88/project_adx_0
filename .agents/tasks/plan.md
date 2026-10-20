@@ -1,366 +1,351 @@
-# ADX Milestone 2 — Implementation Plan
+# Implementation Plan — `adx init` app-shell root + optional `--tailwind`
 
-Derived from the APPROVED design at `.agents/tasks/m2-design.md` (revision 3) and
-`docs/roadmap.md` "Milestone 2". All paths are relative to the worktree root
-`.worktrees/adx-m2/`. Verification uses the project's real commands:
-`npm test` (= `vitest run`) and `npm run build` (= `tsc -p tsconfig.json`).
+Worktree: `/Users/pirrima001/coding/personal/project_adx_0/.worktrees/init-app-shell-tailwind`
+(branch `feat/init-app-shell-tailwind`). Do NOT push or open a PR.
 
-Baseline confirmed: 77 M1 tests green, `tsc` clean. The fixture `user-card` has a
-`name` prop that is `required` with **no default**, so Phase 1's required-prop
-validation will change the result of compiling it without data — the Phase 1 and
-cross-cutting items update the affected M1 tests/fixtures (design Risk 6).
+All paths below are relative to that worktree root unless absolute. Derived from
+the design-check at `.agents/tasks/design-check.md` and direct reads of
+`src/scaffold.ts`, `src/cli.ts`, `src/page/{load,types,compile}.ts`,
+`src/codegen/html.ts`, `docs/adx-grammar.md`, `test/init.test.ts`, and the
+`fixtures/compose/landing` + `fixtures/site` fixtures.
 
-Ordering is by dependency: Phase 1 (data + sandbox + compute-key) is foundational;
-Phases 2 and 3 build on `resolveProps`/sandbox; Phase 4 enriches the hook record
-and glue the composition/page paths already emit; Phases 5 and 6 are independent
-tails. Each item leaves the tree buildable and green.
+## Verification environment (read first)
 
----
+The worktree has **no `node_modules`**; dependencies live in the parent checkout
+`/Users/pirrima001/coding/personal/project_adx_0` (same repo, git worktree).
+**Decision: run `npm install` once in the worktree root at the start (step 0)** so
+`npx vitest` / `npx tsc` run against the edited files. This install is for local
+verification only; it is NOT part of the feature, and `adx init` itself still
+never runs npm or touches the network.
 
-## Phase 1 — Real data binding (`--data` + sandboxed `setup()`)
+- Full suite baseline: **338 tests** (must stay green, plus the new ones added here).
+- Build/type-check: `npm run build` (`tsc -p tsconfig.json`).
+- Full tests: `npm test` (`vitest run`).
+- Scoped tests: `npx vitest run test/init.test.ts`.
 
-- [ ] 1. Add the shared `bareComputedKey` helper.
-      Create `src/behavior/compute-key.ts` exporting
-      `bareComputedKey(exportName: string): string` — strip the leading `get`
-      (3 chars), lowercase ONLY the first remaining char, leave the rest verbatim
-      (`getDisplayName→displayName`, `getURL→uRL`, `getX→x`). Export it from
-      `src/index.ts`.
-      Files: `src/behavior/compute-key.ts`, `src/index.ts`.
-      Verify: add `test/compute-key.test.ts` (table-driven, incl. the `getURL→uRL`
-      acronym case); `npm test` passes it and all 77 existing.
+## Design decisions (made here, grounded in the code I read)
 
-- [ ] 2. Build the sandbox runner `runSetup`.
-      Create `src/behavior/run.ts` exporting
-      `runSetup(behaviorSrc, props, behavior, opts?): { state, computed }` using
-      `node:vm`. Steps per design Phase 1 "Sandbox construction": (a) freeze a
-      minimal seed of globals (`Object,Array,String,Number,Boolean,Math,JSON,
-      Date,RegExp,Map,Set,Symbol,Infinity,NaN,undefined`, no-op `console`, no-op
-      `emit`), omit `require/module/exports/process/global/globalThis/Buffer/
-      timers/fetch/import/node:*`; (b) strip ONLY the leading `export ` keyword of
-      each `EXPORT_RE` match (reuse the scanner's regex), left-to-right splice,
-      preserving `export function|async function|function*|const|let|var` forms;
-      (c) if `!behavior.hasSetup` throw the exact `Missing required export
-      "setup"` error BEFORE appending any invocation; (d) append
-      `;globalThis.__ADX_STATE__ = setup(globalThis.__ADX_PROPS__);`; inject
-      `globalThis.__ADX_PROPS__ = props` into the context; one timed
-      `runInContext(ctx,{timeout: opts?.timeoutMs ?? 1000})` evaluates the module
-      and runs `setup`, read back `ctx.__ADX_STATE__` (NO clone — same reference
-      to the emitter and to `get*`); (e) build `computed` as a map of
-      `bareComputedKey(name)→thunk`, each thunk a pre-compiled per-`get*`
-      `vm.Script` of `globalThis.__ADX_COMPUTED__ = <getName>(globalThis.__ADX_STATE__);`
-      run under its own timed `runInContext`, read back `ctx.__ADX_COMPUTED__`.
-      Map failures to `AdxError` on `behavior.adx.js` (line-less) per the Phase 1
-      error table (ReferenceError→`setup() failed: <msg>`, timeout→`setup()
-      exceeded time budget (1000ms)`, throw→`setup() failed: <msg>`). `setup`
-      returning a non-object → treat as `{}`.
-      Files: `src/behavior/run.ts`, `src/index.ts` (export).
-      Verify: add `test/behavior-run.test.ts` covering benign `setup`,
-      `export const setup = (p)=>({…})` vs `export function setup`,
-      `require('fs')`→ReferenceError-mapped `[ADX]` error, `while(true){}`→timeout,
-      `getDisplayName` collected as `displayName`, an unused `get*` never invoked,
-      no-`setup` fatal before invocation; `npm test` green.
+1. **app-shell is a LAYOUT PARENT component that composes `hello-card` directly
+   via `manifest.deps`, NOT via page-level slot projection.** Verified in
+   `src/page/load.ts` / `src/page/types.ts` / `src/page/compile.ts`: a page
+   `components[]` entry supports only `{ use, data }` — there is **no** slot-fill
+   mechanism at the page layer, and all component bodies are concatenated inside
+   one page-level `<main>` by `wrapPageDocument`. Slot *projection* exists only
+   parent->child inside a component's `structure.adx` (`docs/adx-grammar.md` §11.2,
+   confirmed by `fixtures/compose/landing/`). Inventing page-level slot syntax is
+   explicitly forbidden. So the page places ONE `app-shell` instance; `app-shell`
+   lists `../hello-card` in `deps` and renders `<hello-card/>` inside its own
+   content region. Because the page wrapper already emits a `<main>`, app-shell's
+   own outer region is a `<div>`/`<section>` wrapper (NOT a second `<main>`) to
+   avoid nested-`<main>` landmarks — see step 1 for the exact structure.
 
-- [ ] 3. Add `resolveProps` (merge + required validation) in `compile.ts`.
-      Add `resolveProps(manifest, data, source: "standalone"|"page"|"composed")`
-      → merged props = `defaultProps(manifest)` ⊕ `data` (shallow, data wins),
-      then for each `required` prop with no own value throw the line-less
-      `[ADX] manifest.json - Missing required prop "<name>" (<branch hint>)` with
-      the hint selected by `source` (verbatim strings from the Phase 1 error
-      table). Keep the stem identical across sources.
-      Files: `src/compile.ts`.
-      Verify: add `test/resolve-props.test.ts` (table-driven: merge precedence,
-      each source's hint, pass-through when supplied); `npm test` green.
+2. **Do NOT leave empty page-fillable `<slot>` outlets in app-shell.** Verified in
+   `src/codegen/html.ts#emitSlot`: a `<slot>` in a component compiled as a
+   top-level page component (no parent) emits a stray `<slot data-adx-slot=…>`
+   placeholder into the page HTML (`state.slots` is only set when the component is
+   a *child* of a parent, per `compose.ts`). app-shell is placed top-level by the
+   page, so any `<slot/>` it declares would leak dead markup and would never be
+   filled. Therefore app-shell declares `"slots": []` and renders real semantic
+   layout regions (header / content / footer) with the card composed into the
+   content region. The task's "named header/main/footer slots" are realized as
+   semantic layout regions, not ADX `<slot>` outlets — this keeps the starter
+   clean and invents no syntax. A comment in `structure.adx` records this.
 
-- [ ] 4. Wire `--data` and sandbox into the compile pipeline.
-      `CompileOptions` gains `data?: Record<string, unknown>`. `compileComponent`
-      computes `mergedProps = resolveProps(manifest, opts.data, "standalone")`,
-      calls `runSetup(behaviorSrc, mergedProps, behavior)` →
-      `scope = { state, props: mergedProps, computed }` (computed built via
-      `bareComputedKey`). Extend `CodegenContext` (`src/codegen/context.ts`) with
-      `mergedProps`. Keep `scopeId(manifest.name, basename(dir))` for the
-      single-component path (unchanged ids). `checkComponent` runs the same path.
-      Files: `src/compile.ts`, `src/codegen/context.ts`.
-      Verify: `npm run build` clean; the integration tests in item 6 pass.
+3. **One `<h1>`, no skipped heading levels.** app-shell's `<header>` carries the
+   single page `<h1>` (the app title). `hello-card`'s title is demoted from `<h1>`
+   to `<h2>` (a card heading under the page header — correct, non-skipping
+   hierarchy). This CHANGES two existing assertions in `test/init.test.ts`: the
+   component test that asserts `<h1`, and the page test that asserts NO `<h2>`.
+   Both are updated in step 4.
 
-- [ ] 5. Bake merged props into the glue (hydration parity).
-      In `src/codegen/glue.ts` change `buildProps` to read `ctx.mergedProps`
-      (the exact object the HTML was built from) instead of recomputing manifest
-      defaults; keep the `globalThis.__ADX_PROPS__[Component]` override merged on
-      top. (The per-instance `INSTANCES` loop lands in Phase 3; this item only
-      fixes the props source so first paint == build-time state.)
-      Files: `src/codegen/glue.ts`.
-      Verify: existing `test/glue-emit.test.ts` still green after update; the
-      hydration-parity test in item 6 passes.
+4. **`--tailwind` is a command-gated boolean flag** (mirror the `pattern`-only
+   `--list` gating in `parseArgs`): `const isInit = command === "init"` then
+   `else if (isInit && arg === "--tailwind") parsed.tailwind = true;`. Add optional
+   `tailwind?: boolean` to `ParsedArgs`. No value token.
 
-- [ ] 6. CLI `--data` flag + update M1 tests/fixture for required-prop change.
-      Add `--data <file.json>` to `src/cli.ts` `parseArgs` (same pattern as
-      `--tokens`); the CLI reads+parses the file (fatal `[ADX] <data-file> -
-      Cannot read data file` / `Invalid JSON` / `Data must be a JSON object of
-      props`) and passes the object as `opts.data`. Add
-      `fixtures/user-card/data.json` (`{"name":"Ada Lovelace"}`). Update
-      `test/compile.test.ts` and `test/seo-contract.test.ts` to pass
-      `{ data: { name: "Ada Lovelace" } }` (or read the fixture data file) so the
-      required `name` resolves; add an assertion that `<h2>` is non-empty. Add a
-      jsdom hydration-parity integration test (`test/hydrate-parity.test.ts`):
-      compile with data, render HTML into a DOM, run the glue module, assert
-      DOM text/attrs unchanged before any event (add `jsdom` as a devDependency;
-      keep it out of `files`).
-      Files: `src/cli.ts`, `fixtures/user-card/data.json`,
-      `test/compile.test.ts`, `test/seo-contract.test.ts`,
-      `test/hydrate-parity.test.ts`, `package.json` (devDep `jsdom`).
-      Verify: `npm run build` clean; `npm test` — all suites green (77 M1 +
-      new), empty-`<h2>` bug gone.
+5. **Conditional Tailwind files are assembled dynamically inside
+   `scaffoldProject` (design-check option (a)).** `SCAFFOLD_FILES` stays the
+   unconditional base — the `init.test.ts` "single source of truth" test asserts
+   its `.path` list equals the base set. `scaffoldProject(targetDir, opts?: {
+   tailwind?: boolean })` starts from the base list and, when `opts.tailwind`,
+   (a) swaps the `package.json` thunk for a Tailwind-aware thunk, (b) swaps
+   `index.json` for a Tailwind-aware page, and (c) appends `styles/tailwind.css`.
+   The full assembled list still goes through `writeFileSet`, so the clobber /
+   no-partial-write guard covers every file.
+
+6. **Tailwind wiring uses the page `assets` block directly, not a `site.json`.**
+   Verified `fixtures/site/styled.json`: a page may carry `assets.css` itself, so
+   the Tailwind `index.json` gets `"assets": { "css": ["/tailwind.css"] }`. This
+   avoids a `site.json` and keeps the generated `check` script as plain `adx check
+   index.json` (no `--site` plumbing). The Tailwind CSS is produced by a new
+   `tailwind` npm script running the Tailwind CLI to `dist/tailwind.css`; the
+   generated `build` script runs `tailwind` then `adx build` (`adx build` does not
+   clean `dist`, verified in `src/cli.ts#runPage`, so both outputs coexist). The
+   page references `/tailwind.css`, which resolves against the emitted document at
+   `dist/tailwind.css` — matching where the `tailwind` script emits. `adx init`
+   still only writes files + pins versions; it never installs or runs Tailwind.
+
+7. **Tailwind versions are read from the generating CLI's own `package.json`**
+   (`devDependencies["tailwindcss"]` and `["@tailwindcss/cli"]`, both `4.3.3` in
+   this repo — verified), mirroring how `packageJson()` already reads
+   `../package.json` for name/version/engines. Not hardcoded. The Tailwind-aware
+   thunk validates those two keys exist and throws the standard `[ADX]` file error
+   if either is missing (so a broken install writes nothing).
 
 ---
 
-## Phase 2 — Pages (JSON page manifest → one `index.html` per page)
+# Implementation Plan
 
-- [ ] 7. Page manifest loader + types.
-      Create `src/page/load.ts` exporting `loadPage(path)`/`parsePage(raw,file)`
-      and `src/page/types.ts` (`PageManifest`, `PageComponent`). Validate per the
-      Phase 2 field rules: required `page` (slug `^[a-z0-9]+(?:-[a-z0-9]+)*$`),
-      `title`, `description`, non-empty `components[]` (each with required `use`,
-      optional `data`); optional `lang`(default `en`), `canonical`(default `/` for
-      index/home else `/<page>/`), `schema`. Errors line-less `[ADX] <page-file> -
-      <message>` per the Phase 2 error table.
-      Files: `src/page/types.ts`, `src/page/load.ts`, `src/index.ts`.
-      Verify: add `test/page-load.test.ts` (validation table); `npm test` green.
+- [ ] 0. Install dependencies in the worktree so verification commands run against
+      the edited source.
+      Files: none (creates `node_modules/`, `package-lock.json` — both gitignored).
+      Verify: `npm install` completes; `npx vitest run test/init.test.ts` runs and
+      the current suite passes (establishes the green baseline before edits).
 
-- [ ] 8. `repoRoot` + repo-relative scopeId location helper.
-      Add a helper (in `src/compile.ts` or `src/codegen/scope-location.ts`) that
-      resolves `repoRoot` = nearest ancestor of the build input containing
-      `package.json`, else the input dir; and
-      `scopeLocation(repoRoot, absDir)` = `relative(repoRoot, absDir)` with path
-      separators normalized to `/`. Used by page/composed paths (NOT the
-      single-component M1 path, which keeps `basename`).
-      Files: `src/compile.ts` (or new `src/codegen/scope-location.ts`).
-      Verify: unit test asserts POSIX-normalized stable output across separators;
-      `npm test` green.
+- [ ] 1. Add the new four-file `app-shell/` component as embedded templates in
+      `src/scaffold.ts` and route them through `SCAFFOLD_FILES` (base, always-on).
+      - `app-shell/manifest.json`: `name` "AppShell", version 1.0.0, props all
+        DEFAULTED (e.g. `appName` default "My ADX App", `tagline` default a short
+        string, `year` default a literal string). `emits: []`, `slots: []`,
+        `deps: ["../hello-card"]`, `seo: { "title": "My ADX App", "schema":
+        "WebPage" }`. NO `required` props (bare `adx check` runs with no `--data`).
+      - `app-shell/structure.adx`: semantic layout WITHOUT a second `<main>`
+        (decision 1 — the page wrapper already emits `<main>`). A root wrapper
+        `<div .app-shell>` containing: `<header .app-header>` with the single
+        `<h1 .app-title>{{appName}}</h1>` and `<p .app-tagline>{{tagline}}</p>`;
+        a content region `<section .app-content>` holding the composed child
+        `<hello-card />` (self-closing; props default, so no bindings needed);
+        `<footer .app-footer>` with `<p>` + `{{year}}`. Add a comment explaining
+        these are semantic layout regions (not ADX `<slot>` outlets) and why
+        (decision 2). Use `.className` dot-shorthand only.
+      - `app-shell/behavior.adx.js`: pure `setup(props)` returning
+        `{ appName, tagline, year }` (mirror `fixtures/compose/landing/behavior.adx.js`).
+        No emits.
+      - `app-shell/style.adx.css`: `@use tokens;` then token-only rules
+        (`space-*`, `surface-*`, `text-*`, `radius-*`, `shadow-*`, typography
+        tokens). No hardcoded hex. Honor the UX baseline: token spacing scale,
+        AA contrast (reuse the same token palette hello-card uses), a readable
+        centered `max-width` measure on `.app-content`, reduced-motion safe
+        (no motion needed).
+      - Add these four entries to `SCAFFOLD_FILES` as inline string constants,
+        placed before the `hello-card/` entries (stable, cosmetic order).
+      - Escaping: follow existing template rules — escape literal backticks and any
+        literal `${`; `{{var}}` needs no escaping; keep a trailing newline per
+        constant.
+      Files: `src/scaffold.ts`
+      Verify: `npm run build` confirms the new template literals type-check.
+      `npx vitest run test/init.test.ts` — the `SCAFFOLD_FILES`-list test will FAIL
+      here because the expected array changed; that is expected and corrected in
+      step 4.
 
-- [ ] 9. `compilePage` orchestration + `wrapPageDocument`.
-      Create `src/page/compile.ts` `compilePage(pageManifestPath, opts):
-      CompiledPage`. For each `components[i]`: resolve `use` to an absolute
-      component dir (relative to the page file's dir; a `.json` or
-      `manifest.json`-less target → `Component not found` fatal), compile it via
-      the shared single-component path passing `data` with source `"page"` and the
-      repo-relative `scopeLocation` as scopeId location, collect body/CSS/glue.
-      Concatenate bodies in order inside one `<main>`; union per-component CSS
-      (deduped by resolved absolute dir); emit one glue module per DISTINCT
-      component plus a page entry importing each. Add `wrapPageDocument(bodies,
-      page)` taking the page SEO fields: emits `<html lang>`, per-page
-      `<title>`/description/canonical/OG/Twitter, and schema-gated JSON-LD
-      `{ "@context":"https://schema.org","@type":page.schema,"name":page.title }`.
-      Keep `adx build <dir>` on M1's `wrapDocument` unchanged.
-      Files: `src/page/compile.ts`, `src/index.ts`.
-      Verify: `npm run build` clean; integration test in item 11.
+- [ ] 2. Demote `hello-card`'s title from `<h1>` to `<h2>` and update its
+      embedded template comment to reflect that it now renders inside `app-shell`'s
+      content region (the page `<h1>` lives in the shell header).
+      - In the `STRUCTURE` constant, change `<h1 .title>{{title}}</h1>` to
+        `<h2 .title>{{title}}</h2>`.
+      - Update the `STRUCTURE` doc comment (it currently says the card title is the
+        page's single `<h1>`): say the shell header owns the `<h1>` and the card
+        title is an `<h2>` within the content region, non-skipping.
+      - `style.adx.css` `.title` rule is unchanged (it still styles the heading).
+      Files: `src/scaffold.ts`
+      Verify: `npm run build` passes. Test assertions updated in step 4.
 
-- [ ] 10. CLI strict dispatch (page vs component).
-      In `src/cli.ts`: positional arg ending in `.json` → page build
-      (`compilePage`, write `<out>/<slug>/index.html` with `index`/`home`→root
-      `<out>/index.html`, plus `style.css`/`glue.js`/`<comp>.behavior.js` beside
-      each page); else a dir with `manifest.json` → component build (M1); else
-      fatal `[ADX] <path> - Not a component directory or page manifest`.
-      Files: `src/cli.ts`.
-      Verify: `npm run build` clean; manual `node dist/cli.js build <page.json>`
-      exercised by the item 11 test via the API.
+- [ ] 3. Update the base (no-flag) `index.json` template so the page composes
+      `app-shell` as its single root component instead of `hello-card` directly.
+      - Change the `PAGE` constant `components` to a single entry
+        `{ "use": "./app-shell", "data": { "appName": "...", "tagline": "..." } }`.
+        Every app-shell prop defaults, so `data` is optional; include a small
+        friendly `data` block to mirror today's explicit greeting intent. Keep the
+        `page`/`title`/`description`/`lang`/`schema` fields as-is.
+      - Keep the greeting string "Welcome to your new ADX project." reachable (it
+        comes from `hello-card`'s defaulted `message`, composed inside app-shell),
+        so the existing page test's `toContain(...)` still holds.
+      Files: `src/scaffold.ts`
+      Verify: `npm run build` passes. Page-compile assertions verified in step 4.
 
-- [ ] 11. Two-page fixture site + page integration/SEO tests.
-      Add `fixtures/site/` with `index.json` + `about.json` page manifests and the
-      components they use (reuse `user-card`; add a `site-header` with a default
-      slot). Integration test: compile both pages, assert `index.html` and
-      `about/index.html` contain resolved content, correct per-page title/
-      description/canonical, `lang`, JSON-LD `@type`==schema & `name`==title, and
-      zero `{{`. Assert `adx check <page.json>` passes when all instance required
-      props are supplied and fails with the child's `[ADX] manifest.json -
-      Missing required prop …` otherwise.
-      Files: `fixtures/site/**`, `test/page-compile.test.ts`.
-      Verify: `npm test` — new page suites + all prior green.
+- [ ] 4. Update `test/init.test.ts` to match the new base scaffold set and heading
+      structure. Change ONLY the assertions that must change; keep every other
+      assertion intact.
+      - Extend the `expected` array in the "creates the component, tokens, page…"
+        test (which also drives the `SCAFFOLD_FILES.map((f)=>f.path)` assertion) to
+        include the four `app-shell/*` files in the order chosen in step 1.
+      - In the component-compile test ("scaffolds a component that compiles…"),
+        change `expect(result.html).toContain("<h1")` to `toContain("<h2")`; keep
+        the `min-height`, no-`{{`, no-`tokens.` assertions.
+      - In the page-compile test ("scaffolds a page that compiles…"), keep
+        `h1Count === 1`; REPLACE `expect(result.html).not.toMatch(/<h2[\s>]/)` with
+        a non-skip assertion: assert exactly one `<h1>`, at least one `<h2>`
+        (the card title), and `not.toMatch(/<h3[\s>]/)` (no level skipped for the
+        starter).
+      - Add a NEW unit test: `scaffoldProject(dir)` then
+        `compileComponent(join(dir,'app-shell'), { tokensPath })` with no data —
+        assert the html contains the app name, contains the composed card text
+        ("Welcome to your new ADX project."), no `{{`, and css has no `tokens.`.
+      Files: `test/init.test.ts`
+      Verify: `npx vitest run test/init.test.ts` — all scaffold/init tests pass
+      (base app-shell starter compiles clean; heading hierarchy correct).
 
----
+- [ ] 5. Add the `--tailwind` flag to the CLI parser and init handler in
+      `src/cli.ts`, plus help/usage text.
+      - Add `tailwind?: boolean` to the `ParsedArgs` interface (optional, like
+        `list?`), so the literal `ParsedArgs` objects in tests stay type-complete.
+      - In `parseArgs`, add `const isInit = command === "init";` and a branch
+        `else if (isInit && arg === "--tailwind") { parsed.tailwind = true; }`
+        alongside the existing `isPattern`/`isServe` gated-flag branches (before the
+        positional fallbacks), so for every non-init command `--tailwind` stays an
+        ignored unknown `--` token.
+      - In `runInit`, pass the flag through: `scaffoldProject(target, { tailwind:
+        args.tailwind })`. When `args.tailwind`, append a Tailwind "Next steps" line
+        (e.g. `npm run tailwind` note); keep the default-case next-step lines
+        byte-stable.
+      - Update the `adx init` doc comment block at the top of `cli.ts` to mention
+        the app-shell root and the `--tailwind` flag.
+      - Update the `COMMANDS` table init entry invocation to
+        `adx init [name] [--tailwind]` and its description to mention the optional
+        Tailwind wiring. Update `usage()`'s `adx init [name]` line to
+        `adx init [name] [--tailwind]`. NOTE: `usage()`/`helpText()` output is
+        asserted by CLI tests — update those expected literals in lockstep in
+        step 7.
+      Files: `src/cli.ts`
+      Verify: `npm run build` passes (type-check); `npx vitest run test/init.test.ts`
+      still green (default path unchanged).
 
-## Phase 3 — Component composition (custom tags, slots, prop passing, per-instance identity)
+- [ ] 6. Make `scaffoldProject` accept `{ tailwind?: boolean }` and emit the
+      conditional Tailwind files + Tailwind-aware `package.json`/`index.json`.
+      - Add a Tailwind-aware package.json thunk (single thunk branching on a
+        captured flag, mirroring the existing `packageJson()` pattern): reads the
+        SAME `../package.json`, additionally validates `devDependencies["tailwindcss"]`
+        and `["@tailwindcss/cli"]` exist (throw the standard `[ADX]` file error if
+        either is missing), adds them to the generated app `devDependencies`, and
+        sets scripts to `{ build: "npm run tailwind && adx build index.json",
+        check: "adx check index.json", serve: "adx serve dist", tailwind:
+        "@tailwindcss/cli -i styles/tailwind.css -o dist/tailwind.css --minify" }`.
+      - Add a Tailwind-aware `index.json` string (the base page plus
+        `"assets": { "css": ["/tailwind.css"] }`).
+      - Add a `styles/tailwind.css` input constant: `@import "tailwindcss"
+        source("../");` with a trailing newline (comment that the compiled output
+        goes to `dist/tailwind.css` via `npm run tailwind`, never by ADX).
+      - Change the signature to `scaffoldProject(targetDir: string, opts: {
+        tailwind?: boolean } = {})`. Build the file list: start from
+        `SCAFFOLD_FILES`; when `opts.tailwind`, map the `package.json` entry to the
+        Tailwind thunk, map the `index.json` entry to the Tailwind page, and append
+        `{ path: "styles/tailwind.css", contents: TAILWIND_INPUT }`. Resolve every
+        thunk to a string BEFORE calling `writeFileSet` (keep the current guard
+        order so a throwing thunk writes nothing).
+      - Keep `SCAFFOLD_FILES` as the unmodified base constant (the list test in
+        step 4 asserts the base set; Tailwind files are layered on, not added to
+        the constant).
+      Files: `src/scaffold.ts`
+      Verify: `npm run build` passes; `npx vitest run test/init.test.ts` green.
 
-- [ ] 12. HTML-tag allowlist + `instanceBindingId`.
-      Create `src/codegen/html-tags.ts` (curated `Set` of standard HTML tag
-      names). Add additive `instanceBindingId(scope, instanceIndex, n)` →
-      `` `${scope}-i${instanceIndex}-${n}` `` to `src/codegen/scope.ts`
-      (leave `bindingId`/`scopeId` unchanged). Export both from `src/index.ts`.
-      Files: `src/codegen/html-tags.ts`, `src/codegen/scope.ts`, `src/index.ts`.
-      Verify: unit tests for the id shape and allowlist membership; `npm test`
-      green. (The emit path switches to `instanceBindingId` in item 14; the M1
-      single build becomes `i0`, so update the fixture/html-emit snapshot
-      assertions in that item.)
+- [ ] 7. Add tests for the `--tailwind` path and the CLI flag, matching the
+      existing patterns in `test/init.test.ts`, and update the CLI usage/help
+      assertions wherever they live.
+      - New `scaffoldProject` unit tests (temp dir via `mkdtempSync`):
+        - `scaffoldProject(dir, { tailwind: true })` writes `styles/tailwind.css`
+          whose input contains `@import "tailwindcss"`, and the default (no-flag)
+          run does NOT write it.
+        - The Tailwind `package.json` pins `tailwindcss` and `@tailwindcss/cli` to
+          the framework's own devDependency versions (read the framework
+          `package.json` in the test, like the existing pin test) and has a
+          `tailwind` script plus a `build` script that runs it before `adx build`.
+        - The Tailwind `index.json` has `assets.css` containing `/tailwind.css` and
+          still compiles via `compilePage` with no data (greeting present, no `{{`);
+          assets are referenced, not required to exist on disk.
+        - Clobber safety for the Tailwind set: pre-create `styles/tailwind.css`
+          (and separately `index.json`), expect the `[ADX] … already exists` throw
+          and that no OTHER file (e.g. `app-shell/manifest.json`) was written —
+          analogous to the existing `it.each([...])` guard test.
+      - CLI dispatch: add a `run({ command: "init", …, tailwind: true })` test
+        asserting the Tailwind files land and the exit code is 0; and confirm a
+        default `init` run (no `tailwind`) still produces exactly the base set.
+      - Locate the test(s) asserting `usage()`/`helpText()`/`COMMANDS` output —
+        grep `test/` for `adx init [name]` and `usage(` (e.g. a cli-commands /
+        cli-help test file) — and update those expected strings to
+        `adx init [name] [--tailwind]` in lockstep with step 5.
+      Files: `test/init.test.ts`, and the CLI-usage/help test file found by grep.
+      Verify: `npx vitest run test/init.test.ts` and the located CLI test file —
+      all pass.
 
-- [ ] 13. Per-instance accumulator + instance ordinal in `CodegenContext`.
-      Extend `src/codegen/context.ts` with a per-component `mergedProps`
-      (already added in Phase 1) plus an `INSTANCES` accumulator (one record per
-      emitted instance: `{ instanceIndex, props }`) and a shared page-global
-      instance-ordinal counter owned by the top-level build (threaded by
-      `compileComponent`/`compilePage`).
-      Files: `src/codegen/context.ts`, `src/compile.ts`, `src/page/compile.ts`.
-      Verify: `npm run build` clean; exercised by items 14–16 tests.
+- [ ] 8. Update the framework's own docs to describe the app-shell root starter
+      and the `--tailwind` flag. Keep each doc's voice (compact/reference for
+      agent-facing, warmer for human-facing), keep tables/badges/anchors intact,
+      and keep the cold-start guard wording consistent across all three surfaces.
+      - `README.md`: Quick Start (~line 36-60) notes init now scaffolds an
+        `app-shell/` root composing `hello-card`; the Project Structure tree
+        (~line 125) adds `app-shell/`; the CLI table row for `adx init` (~line 147)
+        notes `[--tailwind]`; document `adx init [name] --tailwind` in the Tailwind
+        section (~line 168-184), pointing at the existing recipe anchor. Leave the
+        "do NOT `npm install project-adx-0`" cold-start guard (~line 40-48)
+        unchanged.
+      - `docs/agent-reference.md`: "Install and First Page" (~line 19-45) — update
+        the `init creates …` list (~line 45) to include `app-shell/` and note
+        `--tailwind`; "Current Capabilities" fast-path line (~line 90); CLI
+        synopsis line (~line 361) to `adx init [name] [--tailwind]`. Keep
+        token-efficient; keep the cold-start wording (~line 24) intact.
+      - `docs/human-guide.md`: Quick Start / Project Structure (~line 25-41) and
+        the CLI synopsis line (~line 608) updated the same way; note `--tailwind`
+        near the existing Tailwind section (~line 851). Keep the cold-start guard.
+      - `docs/adx-grammar.md`: VERIFY no change needed — app-shell uses existing
+        `deps`/composition syntax and no new slot/manifest syntax. Confirm by
+        re-reading §6/§11; edit only if something actually changed (it should not).
+      Files: `README.md`, `docs/agent-reference.md`, `docs/human-guide.md`
+      (and `docs/adx-grammar.md` only if verification finds a real change).
+      Verify: `npx vitest run test/init.test.ts` — the "compiles the agent
+      reference's four-file example verbatim" test still passes (that example is
+      unchanged), and the README-content assertions in init.test.ts (`npm install`,
+      `package-lock.json`, `[AGENTS.md](./AGENTS.md)`) still hold.
 
-- [ ] 14. Custom-tag resolution + recursive instance emission + slots in `html.ts`.
-      In `src/codegen/html.ts` (or a new `src/codegen/compose.ts` called by it):
-      build a dep-resolution table once per component (index each `manifest.deps`
-      dir by kebab(`manifest.name`) and dir basename). When an element's tag is
-      not in the HTML allowlist and not `slot`, resolve it; otherwise if unknown
-      throw `[ADX] structure.adx:<line> - Unknown component "<tag>" (not an HTML
-      element; add to manifest deps)`. For a resolved tag: evaluate its `:prop`/
-      plain attrs against the PARENT scope → child props; recurse via
-      `emitComponentInstance(dir, props, projected, stack)` which runs
-      `resolveProps(childManifest, props, "composed")` + `runSetup`, parses child
-      structure, emits the child body with the child's own scopeId
-      (`scopeLocation(repoRoot, childAbsDir)`), assigns the next instance ordinal,
-      stamps `data-adx-i="i<ordinal>"` on each instance-root element and uses
-      `instanceBindingId(scope, ordinal, n)` for `data-adx-b`. Dedupe CSS/glue by
-      resolved absolute dir. Thread `stack: string[]` of absolute dirs; a repeat
-      throws `[ADX] structure.adx:<line> - Dependency cycle: a -> b -> a`. Slots:
-      child declares `<slot actions />` (unchanged); parent projects
-      `<template slot="name">` (and bare non-template children → default slot);
-      group projected content (`Map<slotName,Node[]>`), fatal on duplicate named
-      projection (`Duplicate slot content for "x"`) and on a `slot="x"` the child
-      does not declare (`Component "<tag>" has no slot "x"`); emit projected nodes
-      under the PARENT's scope/instance-ordinal/hook-ids at the child `<slot>`
-      position (drop the `data-adx-slot` placeholder in composed output).
-      Files: `src/codegen/html.ts`, `src/codegen/compose.ts` (optional),
-      `src/compile.ts`.
-      Verify: unit tests (dep table, 2- & 3-node cycle, slot grouping);
-      update `test/html-emit.test.ts` + fixture snapshot for the `i0` id change;
-      `npm test` green.
+- [ ] 9. Update the generated `README.md` and `AGENTS.md` template strings in
+      `src/scaffold.ts` so the scaffolded project's own docs describe the app-shell
+      root and the Tailwind install/build step, while keeping the default (no-flag)
+      docs correct and every existing init.test.ts content assertion satisfied.
+      - Generated `README` constant: mention the `app-shell/` root composing
+        `hello-card`; KEEP the exact phrases the tests assert (`npm install`,
+        `npm run check`, `npm run build`, `npm run serve`, `package-lock.json`,
+        `[AGENTS.md](./AGENTS.md)`). Add a short "If you scaffolded with
+        `--tailwind`" note documenting `npm run tailwind` and that `npm run build`
+        compiles Tailwind first. Keep this to ONE `README` constant (the per-flag
+        difference is carried by the devDeps/scripts, not the prose) to preserve
+        the single-thunk shape.
+      - Generated `AGENTS` constant: KEEP every asserted phrase intact (Caveman
+        defaults, app-scope, local-CLI setup, the "do not install the npm package
+        named `adx`" line, the `node_modules/project-adx-0/docs/agent-reference.md`
+        path). Add at most a brief line noting the app-shell root is the layout
+        entry; do not break escaping or any `toContain` assertion.
+      - Re-verify template escaping (backticks, `${`) and trailing newlines.
+      Files: `src/scaffold.ts`
+      Verify: `npx vitest run test/init.test.ts` — the AGENTS/README content tests
+      all pass.
 
-- [ ] 15. Per-instance glue module in `glue.ts`.
-      Rewrite `emitGlue` to emit, per distinct component: an `INSTANCES` array
-      (each `{ i:"i<ordinal>", props: <that instance's mergedProps> }`), a module
-      that loops over instances — each iteration selects its root via
-      `[data-adx-c=SCOPE][data-adx-i=i<ordinal>]`, builds its own
-      `state = setup(Object.assign({}, inst.props, overrides))`, its own `emit`
-      closure on that root, a `byHook` scoped to that root (via the templated
-      `{i}` in each hook id), and wires events as
-      `(event)=>{ globalThis.emit = emit; handler(state,event); rerender(); }`.
-      Keep `evalExpr`/`applyUpdate`/`toText` as shared pure module-level helpers
-      (the `rerender` body is filled in Phase 4; here it may be a no-op loop over
-      the still-empty `updates`).
-      Files: `src/codegen/glue.ts`.
-      Verify: update `test/glue-emit.test.ts`; `npm test` green.
+- [ ] 10. Full green gate.
+      Files: none.
+      Verify: `npm run build` (tsc clean) AND `npm test` (full `vitest run`) — all
+      tests pass: the 338-test baseline plus the new scaffold/CLI tests from steps
+      4 and 7, with zero regressions. Confirm `adx init` still writes files only:
+      `scaffoldProject`/`runInit` contain no spawn/exec/fetch (verified — they do
+      not), and `--tailwind` only pins versions + writes config files.
 
-- [ ] 16. Composition integration + per-instance tests.
-      Integration (jsdom): a page composing `site-header` (default slot) +
-      `user-card` (`slot="actions"`); assert child content appears inside parent
-      markup, each component's `data-adx-c` is its own id, both CSS blocks appear
-      once and scoped, zero `{{`. Required: a page using one component twice with
-      different data → distinct `data-adx-b` and `data-adx-i` per instance,
-      dispatching an event on each patches that instance only; a child that
-      `emit`s on click used twice → clicking the second instance delivers the
-      event with `event.target` inside the second instance's `data-adx-i="i1"`
-      subtree. Slot-ownership: projected `{{parentState}}` + `@event` carries the
-      PARENT's `data-adx-c`/`data-adx-i` and patches from parent state.
-      Files: `test/compose.test.ts`, `fixtures/site/**` (site-header etc.).
-      Verify: `npm test` — all green.
+## Notes / assumptions
 
----
+- Keeping single generated `README`/`index.json`/`package.json` *base* constants
+  plus Tailwind-aware overrides assembled in `scaffoldProject` preserves the
+  "`SCAFFOLD_FILES` is the base set" invariant the existing list test depends on.
+- `adx build` does not clean `dist/` (verified in `src/cli.ts#runPage`), so
+  `npm run tailwind` (writes `dist/tailwind.css`) and `adx build index.json`
+  (writes `dist/index.html` etc.) coexist; the generated `build` runs tailwind
+  first to match the documented recipe order.
+- If the CLI usage/help assertions live in more than one test file, update each
+  occurrence found by the step-7 grep.
+- No compiler/codegen changes — only `src/scaffold.ts`, `src/cli.ts`, their tests,
+  and docs are touched. app-shell uses only existing `deps`/composition syntax.
 
-## Phase 4 — Reactivity semantics (patch contract, no vDOM)
+## Workflow decomposition decision
 
-- [ ] 17. Enrich `BindingHook` with `updates` + computed freeze in `html.ts`.
-      Add `UpdateInstr`/`SerExpr`/`SerPart` types and `updates: UpdateInstr[]` to
-      `BindingHook`. Widen hook emission: emit a hook when a node has bindings OR
-      events OR a single interpolated text run (children are exactly one `TextNode`
-      with ≥1 `{{expr}}` part). Lower each `:prop` binding to an `attr`/
-      `attrTemplate` UpdateInstr and the single text run to a `text`/`textTemplate`
-      UpdateInstr (1:1 map of the AST `Expr` → `SerExpr`). Define `rootIdent(e)`
-      (unwrap member chain to base ident) and build `computedKeys =
-      new Set(ctx.behavior.computed.map(bareComputedKey))`; FREEZE (emit no
-      UpdateInstr) any run where `computedKeys.has(rootIdent(expr))` — for
-      templates, freeze the whole run if ANY part's root ident is computed.
-      `:for`-unrolled nodes get events-only hooks (text/attrs frozen). An element
-      with both an `@event` and state-backed `{{count}}` → one hook with the event
-      and a `text` UpdateInstr.
-      Files: `src/codegen/html.ts`, `src/index.ts` (export new types).
-      Verify: unit tests in `test/html-emit.test.ts`/new file: `:src`, `{{name}}`,
-      template attr round-trip; combined event+`{{count}}`; `:for`+event
-      events-only; computed `{{displayName}}` → NO text update (frozen),
-      `{{displayName.foo}}` frozen, state `{{count}}` → one update; `npm test`
-      green.
-
-- [ ] 18. Runtime patch in the per-instance glue.
-      Fill the `rerender`/`applyUpdate`/`evalExpr`/`joinParts`/`toText`/
-      `setOrRemoveAttr` logic in `src/codegen/glue.ts`: emit the compiled `HOOKS`
-      array (events + serialized `updates`); per-instance `rerender` re-applies
-      every hook's `updates` against that instance's `state`, resolving nodes only
-      within that instance's `root`. `evalExpr` mirrors `evaluate.ts`'s
-      ident/member walk over the single `state` object; attrs removed on
-      null/undefined. First `rerender` after hydration is a no-op for a
-      deterministic `setup`.
-      Files: `src/codegen/glue.ts`.
-      Verify: update `test/glue-emit.test.ts`; `npm test` green.
-
-- [ ] 19. Reactivity DOM integration tests (jsdom).
-      In `test/reactivity.test.ts`: emit glue for a fixture, run under jsdom;
-      dispatch a wired event and assert state-backed `{{count}}` text/attrs patch;
-      assert a `getDisplayName`-backed `<h2>{{displayName}}</h2>` is UNCHANGED
-      (not blanked) after `rerender`; assert a `:for` item does not live-update.
-      Files: `test/reactivity.test.ts` (+ a small reactivity fixture if needed).
-      Verify: `npm test` — all green.
-
----
-
-## Phase 5 — Measured token benchmark
-
-- [ ] 20. Benchmark harness + `measure` + `npm run benchmark`.
-      Create `benchmark/` with `tasks.json` (understand/modify-style/add-prop file
-      sets), `react/` (a committed React equivalent of `user-card` meeting the
-      design's equivalence rule: same DOM/text, same props, same styling surface),
-      `adx/` (copy/symlink of the measured fixture), `run.ts` (tokenizes each file
-      with `gpt-tokenizer` `o200k_base`, computes `savings=(react-adx)/react`,
-      writes a table to stdout + `benchmark/results.json`), and `README.md` with
-      reproduction + an "Equivalence" note. Factor the math into a pure
-      `measure(fileSets): Results`. Add `gpt-tokenizer` (exact pinned version) as
-      a devDependency and
-      `"benchmark": "tsc -p tsconfig.json && node dist/benchmark/run.js"`; keep
-      `benchmark/` out of the published `files` list.
-      Files: `benchmark/**`, `package.json`.
-      Verify: add `test/benchmark-measure.test.ts` (pure `measure` with in-memory
-      strings + stubbed encoder); `npm test` green; `npm run benchmark` runs and
-      writes `results.json`.
-
----
-
-## Phase 6 — Documentation sync (same change; mark only what works)
-
-- [ ] 21. Sync all docs to the shipped M2 behavior.
-      Update: `docs/adx-grammar.md` (custom-tag resolution; `<slot actions />`
-      declaration vs `<template slot="name">` projection, `<slot name="actions"/>`
-      is NOT valid, `#name` noted as planned sugar that is *already parseable*;
-      build-time slots; `data-adx-slot` only in standalone; `data-adx-i` +
-      `${scope}-i${ordinal}-${n}` hook id; §4.3 `get*`→bare-key rule incl.
-      `getURL→uRL`). `docs/agent-reference.md` (`--data`, page build +
-      `adx build <page.json>`, composition syntax, reactivity contract + limits,
-      `npm run benchmark`; update IMPLEMENTED vs PLANNED). `docs/human-guide.md`
-      (worked 2-page site from 2 composed components with real data; replace
-      `#actions` examples with `slot="actions"` + planned-`#` note; fix the
-      "scanned, never executed" phrasing to sandboxed `setup()`).
-      `docs/architecture.md` (build-time sandbox; reactivity patch model; security
-      note). `docs/comparison.md` + `docs/token-efficiency.md` (add a "Measured
-      (M2)" section with the real table; label the prior "65-85%" figure as
-      estimated; adjust the headline claim to the measured range if below it).
-      `docs/roadmap.md` (flip ONLY the actually-shipped M2 items from ❌/🚧 to ✅;
-      update "Next up"). `README.md` (roadmap rows + "Next up"; keep version
-      accurate).
-      Files: `docs/adx-grammar.md`, `docs/agent-reference.md`,
-      `docs/human-guide.md`, `docs/architecture.md`, `docs/comparison.md`,
-      `docs/token-efficiency.md`, `docs/roadmap.md`, `README.md`.
-      Verify: `npm run build` + `npm test` still green (docs-only); manual read:
-      the "Measured (M2)" table numbers match `benchmark/results.json`; roadmap
-      marks match reality.
-
----
-
-## Cross-cutting Definition of Done
-
-- `npm test` green: all 77 M1 tests (updated where Phase 1's required-prop change
-  demands) plus every new unit/integration suite.
-- `npm run build` (`tsc`) clean.
-- `npm run benchmark` produces measured numbers; docs reflect them honestly.
-- Raw emitted HTML (pre-JS) for pages/components contains real resolved content,
-  correct metadata, and zero `{{` — verified by SEO integration tests.
+This task does NOT decompose into separable FEATs. It is one coherent
+scaffolder + CLI-flag + docs change confined to two source files
+(`src/scaffold.ts`, `src/cli.ts`) plus their tests and the docs, with tight
+ordering coupling (the scaffold template change and the test-assertion update must
+land together to stay green). The brief itself notes it "most likely does NOT need
+per-FEAT decomposition." The remaining implement-and-review loop will execute this
+single plan. The workflow tail is therefore left unchanged.
