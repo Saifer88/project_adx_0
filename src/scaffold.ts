@@ -279,6 +279,10 @@ Otherwise follow these rules directly:
 
 ## Local CLI and workflow
 
+- This file lives in an already-initialized ADX project. To START a new ADX
+  project from scratch, run \`adx init\` via
+  \`npx --yes --package project-adx-0 adx init <name>\` — never a bare
+  \`npm install project-adx-0\` into an empty directory.
 - Work from the app root. If \`project-adx-0\` is declared, preserve its version;
   run \`npm install\` when the local CLI is missing. Include dev dependencies.
 - Only if that dependency is absent, add it with

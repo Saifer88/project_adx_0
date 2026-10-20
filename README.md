@@ -39,6 +39,13 @@ The npm package is **`project-adx-0`**; the CLI command it installs is **`adx`**
 Requires Node.js 18+ and npm; Node.js 24 LTS is recommended for new projects.
 No repository clone or fixtures are needed.
 
+> **Starting a new/empty project? Do NOT `npm install project-adx-0` directly.**
+> Run `adx init` with the one-liner below (`npx --yes --package project-adx-0 adx
+> init my-app`). It scaffolds the required four-file-component starter and pins
+> the dependency for you. A bare `npm install project-adx-0` only adds the package
+> and leaves you with no ADX layout. Direct `npm install project-adx-0` is
+> appropriate **only inside an existing ADX app** whose dependency is missing.
+
 ```bash
 npx --yes --package project-adx-0 adx init my-app
 cd my-app
@@ -98,9 +105,12 @@ and load `AGENTS.md`; otherwise ask the agent to read it explicitly. Give your
 agent your frontend requirements and this starting instruction:
 
 ```text
-Build my frontend using ADX (npm package: project-adx-0).
-Follow AGENTS.md. Ensure the local CLI is installed, then read
-node_modules/project-adx-0/docs/agent-reference.md.
+Build my frontend using ADX (npm package: project-adx-0, CLI: adx).
+If there is no ADX project yet (empty/new directory), start one FIRST with
+`npx --yes --package project-adx-0 adx init my-app` — do NOT `npm install project-adx-0`
+into an empty dir. If an ADX app already exists, work inside it.
+Once a project exists: follow AGENTS.md, ensure the local CLI is installed
+(`npm install`), then read node_modules/project-adx-0/docs/agent-reference.md.
 Work in this app and use supported APIs. Verify layout and interactions in a browser.
 ```
 

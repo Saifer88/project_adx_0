@@ -21,6 +21,13 @@ guide for application authors, not instructions for developing the ADX framework
 Requires Node.js 18+ and npm; Node.js 24 LTS is recommended for new projects.
 The npm package is `project-adx-0`; its executable is `adx`.
 
+**Cold start (new/empty project): run `adx init` via npx first — never
+`npm install project-adx-0` to bootstrap.** A bare install only adds the package
+and leaves no ADX layout. `adx init` scaffolds the four-file-component starter and
+pins the dependency. Direct dependency install
+(`npm install --save-dev --save-exact project-adx-0`) is ONLY for an existing ADX
+app that is missing the dep.
+
 ```bash
 npx --yes --package project-adx-0 adx init my-app
 cd my-app
