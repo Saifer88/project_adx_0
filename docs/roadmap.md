@@ -119,10 +119,15 @@ claimed from the source-reading measurement.
 ## Shipped — project scaffolding (`adx init`) ✅
 
 `adx init [name]` scaffolds a minimal, buildable starter project (one
-`hello-card` component, an `index.json` page, the design tokens, and a README)
+`hello-card` component, an `index.json` page, tokens, README, `AGENTS.md`, `.gitignore`, and
+`package.json` with build/check/serve scripts and an exact local ADX dev dependency)
 into `./<name>` — or the current directory when the name is omitted or `.`. It
 refuses to overwrite an existing scaffold file (writing nothing on conflict),
-and the result builds and serves with the commands above with no `--data`.
+and leaves installation explicit. Run `npm install`, then `npm run check`,
+`npm run build`, and `npm run serve`; no global CLI or `--data` is needed.
+Commit the generated npm lockfile so a clone can install the same dependency tree.
+The generated agent instructions set concise chat defaults, application scope,
+and local CLI setup guidance; they do not require a separate Caveman installation.
 
 ## Shipped — first-class external design-library assets (pages) ✅
 

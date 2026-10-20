@@ -40,31 +40,40 @@ Requires Node.js 18+ and npm; Node.js 24 LTS is recommended for new projects.
 No repository clone or fixtures are needed.
 
 ```bash
-npm install -g project-adx-0
-adx init my-app
+npx --yes --package project-adx-0 adx init my-app
 cd my-app
-adx check index.json
-adx build index.json
-adx serve dist
+npm install
+npm run check
+npm run build
+npm run serve
 ```
 
 Open the printed URL (by default `http://localhost:3000/`). Edit the files in
 `hello-card/` and the page metadata/data in `index.json`, then run
-`adx check index.json` and `adx build index.json` again and refresh the browser. `serve`
+`npm run check` and `npm run build` again and refresh the browser. `serve`
 only serves compiled files; it does not rebuild or hot reload. Stop it with Ctrl+C.
 
-### Without a Global Install
+### Share or clone the project
 
-Use this alternative in a fresh directory. Because the package and binary names
-differ, pass the package with `--package` on every invocation:
+`init` creates a private npm project with `project-adx-0` pinned to the generating
+CLI's exact version as a development dependency. It does not run npm or access
+the network itself. Commit the generated source and `package.json`, plus the
+`package-lock.json` produced by the first install. Do not commit `node_modules/`
+or `dist/`; the starter's `.gitignore` excludes them.
 
 ```bash
-npx --yes --package project-adx-0 adx init my-app
-cd my-app
-npx --yes --package project-adx-0 adx check index.json
-npx --yes --package project-adx-0 adx build index.json
-npx --yes --package project-adx-0 adx serve dist
+# After cloning, from the project root:
+npm install
+npm run check
+npm run build
+npm run serve
 ```
+
+No global ADX installation is needed. Use `npm ci` in CI once the lockfile is
+committed; include development dependencies for build/check. For commands not
+covered by scripts, use `npx adx ...` after installing locally. A global
+`npm install -g project-adx-0` followed by `adx init my-app` remains supported,
+but the generated project still uses its own local dependency.
 
 **Trust boundary:** both `build` and `check` execute component JavaScript.
 Only compile trusted components. Node `vm` and its timeout are not a security
@@ -73,16 +82,26 @@ filesystem, network, credentials, and resources.
 
 ## Build With an AI Agent
 
-Give your agent your frontend requirements and this starting instruction:
+`adx init` generates a root `AGENTS.md`. Commit it with the app: it sets Caveman
+ultra as the default chat style, with concise fallback rules when the skill is
+unavailable. Code, docs, and UI copy remain in normal prose; requests for detail
+or normal chat take precedence.
+
+It also keeps work in application source rather than the ADX compiler, CLI,
+installed package, or generated output. If the local CLI is missing, the agent
+is instructed to run `npm install`, preserving the declared version. Only when
+the dependency is absent should it add `project-adx-0` as an exact dev dependency.
+No global CLI or Caveman installation is required.
+
+These are project instructions, not runtime enforcement. Clients must support
+and load `AGENTS.md`; otherwise ask the agent to read it explicitly. Give your
+agent your frontend requirements and this starting instruction:
 
 ```text
 Build my frontend using ADX (npm package: project-adx-0).
-Read https://github.com/Saifer88/project_adx_0/blob/main/docs/agent-reference.md first.
-Work in my app project, not the ADX framework repository. Use the installed CLI.
-Create or edit components, page manifests, and design tokens. Do not modify
-the ADX compiler, CLI, installed package, or generated dist output.
-Use only implemented APIs. Run adx check, build the pages, and preview them
-with adx serve. Verify layout and interactions in a browser.
+Follow AGENTS.md. Ensure the local CLI is installed, then read
+node_modules/project-adx-0/docs/agent-reference.md.
+Work in this app and use supported APIs. Verify layout and interactions in a browser.
 ```
 
 The canonical guide also ships in the npm package at `docs/agent-reference.md`.
@@ -99,7 +118,12 @@ my-app/
 		behavior.adx.js        Setup and synchronous event handlers
 		style.adx.css          Styles using design tokens
 	index.json               Page metadata and component data
+	package.json             Pinned ADX dependency and npm scripts
+	package-lock.json        Created by npm install; commit it
+	.gitignore               Excludes dependencies and build output
+	AGENTS.md                AI defaults, app boundaries, and CLI setup
 	tokens/design-tokens.json
+	node_modules/            Installed dependencies; do not edit
 	dist/                    Generated output; do not edit
 ```
 
@@ -110,7 +134,7 @@ grows. Edit source files, check, build, and refresh the preview.
 
 | Command | Purpose |
 | :--- | :--- |
-| `adx init [name]` | Create a starter in a named directory or the current directory; never overwrites scaffold files. |
+| `adx init [name]` | Create an npm-ready starter with a pinned local ADX dependency; never overwrites scaffold files. |
 | `adx check <componentDir\|page.json>` | Validate in memory; exits 0 on success or 1 with an `[ADX]` error. |
 | `adx build <componentDir\|page.json>` | Generate static HTML, scoped CSS, and hydration JavaScript. |
 | `adx serve [dir]` | Preview compiled output; defaults to `dist`. No compilation or hot reload. |
@@ -118,11 +142,11 @@ grows. Edit source files, check, build, and refresh the preview.
 | `adx help` | Show all commands and flags. |
 
 ```bash
-adx build index.json --out dist --tokens tokens/design-tokens.json
-adx build styled.json --site site.json   # merge shared external assets (Tailwind, etc.)
-adx check hello-card --data sample-data.json
-adx serve dist --port 3000 --host localhost
-adx tokens --tokens tokens/design-tokens.json
+npx adx build index.json --out dist --tokens tokens/design-tokens.json
+npx adx build styled.json --site site.json   # merge shared external assets (Tailwind, etc.)
+npx adx check hello-card --data sample-data.json
+npm run serve -- --port 3000 --host localhost
+npx adx tokens --tokens tokens/design-tokens.json
 ```
 
 `sample-data.json` is your JSON props file, not a generated starter file.

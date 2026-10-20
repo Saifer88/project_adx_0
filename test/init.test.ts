@@ -28,7 +28,7 @@ describe("scaffoldProject", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("creates the four component files, tokens, page manifest, and README", () => {
+  it("creates the component, tokens, page, README, and npm project files", () => {
     const written = scaffoldProject(dir);
 
     const expected = [
@@ -39,6 +39,9 @@ describe("scaffoldProject", () => {
       "tokens/design-tokens.json",
       "index.json",
       "README.md",
+      "package.json",
+      ".gitignore",
+      "AGENTS.md",
     ];
     expect(written).toEqual(expected);
     for (const rel of expected) {
@@ -48,10 +51,58 @@ describe("scaffoldProject", () => {
     expect(SCAFFOLD_FILES.map((f) => f.path)).toEqual(expected);
   });
 
-  it("refuses to overwrite and writes nothing when a target file already exists", () => {
+  it("pins the generating CLI as a local dependency with portable npm scripts", () => {
+    scaffoldProject(dir);
+    const framework = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+    const app = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+
+    expect(app.private).toBe(true);
+    expect(app.type).toBe("module");
+    expect(app.devDependencies).toEqual({ [framework.name]: framework.version });
+    expect(app.engines).toEqual(framework.engines);
+    expect(app.scripts).toEqual({
+      build: "adx build index.json",
+      check: "adx check index.json",
+      serve: "adx serve dist",
+    });
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toBe("node_modules/\ndist/\n");
+    expect(existsSync(join(dir, "node_modules"))).toBe(false);
+    expect(existsSync(join(dir, "package-lock.json"))).toBe(false);
+    const readme = readFileSync(join(dir, "README.md"), "utf8");
+    for (const command of ["npm install", "npm run check", "npm run build", "npm run serve"]) {
+      expect(readme).toContain(command);
+    }
+    expect(readme).toContain("package-lock.json");
+  });
+
+  it("provides portable Caveman defaults, app boundaries, and local CLI setup", () => {
+    scaffoldProject(dir);
+    const instructions = readFileSync(join(dir, "AGENTS.md"), "utf8");
+    expect(instructions).toContain("Caveman ultra");
+    expect(instructions).toContain("its ultra mode");
+    expect(instructions).toContain("If the caveman skill is available");
+    expect(instructions).toContain("Otherwise follow these rules directly");
+    expect(instructions).toContain("normal prose");
+    expect(instructions).toContain("explicit requests");
+    expect(instructions).toContain("compiler and CLI as dependencies");
+    expect(instructions).toContain("Do not edit `node_modules/`, the installed ADX package, or generated `dist/`");
+    expect(instructions).toContain("explicitly requests framework development");
+    expect(instructions).toContain("preserve its version");
+    expect(instructions).toContain("npm install");
+    expect(instructions).toContain("npm install --save-dev --save-exact project-adx-0");
+    expect(instructions).toContain("Do not install the npm package named `adx`");
+    expect(instructions).toContain("report the error");
+    expect(instructions).toContain("npm run check");
+    expect(instructions).toContain("npm run build");
+    expect(instructions).toContain("npm run serve");
+    expect(instructions).toContain("node_modules/project-adx-0/docs/agent-reference.md");
+    expect(readFileSync(join(dir, "README.md"), "utf8")).toContain("[AGENTS.md](./AGENTS.md)");
+  });
+
+  it.each(["index.json", "package.json", ".gitignore", "AGENTS.md"])("refuses to overwrite %s and writes nothing", (filename) => {
     // Pre-create one of the scaffold targets; the guard must fail before
     // writing any OTHER file.
-    writeFileSync(join(dir, "index.json"), "{}", "utf8");
+    writeFileSync(join(dir, filename), "existing content", "utf8");
 
     expect(() => scaffoldProject(dir)).toThrow(/^\[ADX\] .* already exists/);
 
@@ -59,6 +110,7 @@ describe("scaffoldProject", () => {
     expect(existsSync(join(dir, "hello-card", "manifest.json"))).toBe(false);
     expect(existsSync(join(dir, "tokens", "design-tokens.json"))).toBe(false);
     expect(existsSync(join(dir, "README.md"))).toBe(false);
+    expect(readFileSync(join(dir, filename), "utf8")).toBe("existing content");
   });
 
   it("embeds the repo's real design tokens verbatim (no silent drift)", () => {
@@ -173,8 +225,14 @@ describe("adx init CLI dispatch", () => {
     // Next-step commands are printed to stdout.
     const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
     expect(printed).toContain("Created ADX project");
-    expect(printed).toContain("adx build hello-card");
-    expect(printed).toContain("adx serve dist");
+    expect(printed).toContain("npm install");
+    expect(printed).toContain("npm run check");
+    expect(printed).toContain("npm run build");
+    expect(printed).toContain("npm run serve");
+    expect(printed).not.toContain("  cd ");
+    const app = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
+    const framework = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+    expect(app.devDependencies[framework.name]).toBe(framework.version);
   });
 
   it("resolves `init <name>` to ./<name> and prints a `cd` step", () => {

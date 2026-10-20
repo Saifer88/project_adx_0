@@ -15,7 +15,7 @@
  *
  *   adx init [name]
  *       Scaffolds a new, minimal ADX starter project (one `hello-card`
- *       component, an `index.json` page, the design tokens, and a README) into
+ *       component, a page, tokens, npm files, AGENTS.md, and a README) into
  *       `./<name>` — or the current directory when `name` is omitted or `.`.
  *       One-shot: it refuses to overwrite an existing scaffold file (writing
  *       nothing on conflict), prints what it created plus the next steps, and
@@ -161,7 +161,7 @@ function loadData(path: string): Record<string, unknown> {
 const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
   {
     invocation: "adx init [name]",
-    description: "Scaffold a new starter project into ./<name> (or CWD).",
+    description: "Scaffold an npm-ready starter into ./<name> (or CWD).",
   },
   {
     invocation:
@@ -519,9 +519,10 @@ function runInit(args: ParsedArgs): number {
   if (target !== ".") {
     out.push(`  cd ${target}`);
   }
-  out.push(`  adx build hello-card    # compile the component -> dist/hello-card/`);
-  out.push(`  adx build index.json    # compile the page -> dist/index.html`);
-  out.push(`  adx serve dist          # preview locally at http://localhost:3000/`);
+  out.push(`  npm install            # install the pinned local ADX dependency`);
+  out.push(`  npm run check`);
+  out.push(`  npm run build          # compile the page -> dist/index.html`);
+  out.push(`  npm run serve          # preview locally at http://localhost:3000/`);
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }
