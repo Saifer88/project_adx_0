@@ -4,10 +4,12 @@ on:
   push:
     branches: [main]
 
-# Read-only: CI no longer commits a version bump back to main. The version in
-# package.json is the source of truth and is set by humans.
+# CI auto-increments the PATCH digit (x.y.+1) on every push to main, commits the
+# bump back to main with [skip ci] (so the bump commit does not re-trigger this
+# workflow), and publishes that version. Humans bump MAJOR/MINOR by editing
+# package.json directly; CI continues patching from whatever is committed.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: publish
@@ -16,10 +18,14 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Honor [skip ci] in commit messages if present (e.g. docs-only pushes).
+    # Skip the bump commit's own push and any push that opts out with [skip ci].
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + a token with write access so we can commit the bump.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -29,32 +35,28 @@ jobs:
       - run: npm run build
       - run: npm test
 
-      - name: Decide whether to publish package.json's version
+      - name: Bump patch version and commit to main
         id: version
         run: |
-          # The source of truth is package.json: humans choose the version
-          # (major/minor/patch) and commit it. CI does not rewrite or
-          # auto-increment it. We publish that exact version, and only if it is
-          # not already on npm; otherwise we skip cleanly (so re-pushes and the
-          # bot's own commit are no-ops rather than errors).
-          CURRENT="$(node -p "require('./package.json').version")"
-          # All published versions, newline-separated (empty on a brand-new pkg).
-          VERSIONS="$(npm view project-adx-0 versions --json 2>/dev/null \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let v=[];try{v=JSON.parse(s||"[]")}catch{};if(!Array.isArray(v))v=[v];process.stdout.write(v.join("\n"))})' \
-            || true)"
-          if printf '%s\n' "$VERSIONS" | grep -Fxq "$CURRENT"; then
-            echo "project-adx-0@$CURRENT is already published; skipping publish."
-            echo "should_publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "project-adx-0@$CURRENT is not yet published; will publish."
-            echo "should_publish=true" >> "$GITHUB_OUTPUT"
-          fi
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          # Auto-increment the PATCH digit from package.json's current version.
+          # `npm version patch` updates package.json (+package-lock.json) and is
+          # the source of the new number; --no-git-tag-version keeps npm from
+          # creating its own commit/tag so we control the commit message.
+          NEW="$(npm version patch --no-git-tag-version)"
+          # `npm version` prints the new version prefixed with "v" (e.g. v0.2.1).
+          NEW="${NEW#v}"
+          echo "Bumped to project-adx-0@$NEW"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          # [skip ci] prevents this push from re-triggering the workflow (loop guard).
+          git commit -m "chore: release v$NEW [skip ci]"
+          git push origin HEAD:main
+          echo "current=$NEW" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm (latest)
-        if: steps.version.outputs.should_publish == 'true'
         run: |
-          # Publishes package.json's version under the default `latest`
+          # Publishes the freshly bumped version under the default `latest`
           # dist-tag so the documented install — `npm install -g project-adx-0`
           # — gets this build. prepublishOnly rebuilds from the committed source.
           echo "Publishing project-adx-0@${{ steps.version.outputs.current }} to latest."
