@@ -160,7 +160,7 @@ grows. Edit source files, check, build, and refresh the preview.
 | Command | Purpose |
 | :--- | :--- |
 | `adx init [name] [--tailwind]` | Create an npm-ready app-shell starter (root layout composing `hello-card`) with a pinned local ADX dependency; never overwrites. `--tailwind` also pins Tailwind + wires the build-time static CSS. |
-| `adx create <component-name>` | Scaffold one new four-file component into the current project; never overwrites. |
+| `adx create <path>/<component-name>` | Scaffold one new four-file component into the current project; never overwrites. Leading `/`-separated segments become nested folders (mkdir -p) and the last segment is the component name (e.g. `adx create landing/footer` writes `landing/footer/…`, manifest name `Footer`); a bare name scaffolds flat. |
 | `adx check <componentDir\|page.json>` | Validate in memory; exits 0 on success or 1 with an `[ADX]` error. |
 | `adx build <componentDir\|page.json>` | Generate static HTML, scoped CSS, and hydration JavaScript. |
 | `adx serve [dir]` | Preview compiled output; defaults to `dist`. No compilation or hot reload. |

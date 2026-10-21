@@ -15,6 +15,7 @@ import {
   scaffoldComponent,
   templatedFiles,
   validateComponentName,
+  parseComponentPath,
   pascalCase,
 } from "../src/create.js";
 import { compileComponent, checkComponent } from "../src/compile.js";
@@ -138,6 +139,86 @@ describe("scaffoldComponent", () => {
       checkComponent(join(dir, "widget-card"), { tokensPath }),
     ).not.toThrow();
   });
+
+  it("scaffolds a nested single-level path and derives the name from the last segment", () => {
+    const written = scaffoldComponent("landing/footer", dir);
+
+    const expected = [
+      "landing/footer/manifest.json",
+      "landing/footer/structure.adx",
+      "landing/footer/behavior.adx.js",
+      "landing/footer/style.adx.css",
+    ];
+    expect(written).toEqual(expected);
+    for (const rel of expected) {
+      expect(existsSync(join(dir, rel))).toBe(true);
+    }
+    // PascalCase manifest name comes from the LAST segment only.
+    expect(
+      readFileSync(join(dir, "landing/footer/manifest.json"), "utf8"),
+    ).toContain(`"name": "Footer"`);
+    // `landing/` is the only thing created at the root.
+    expect(readdirSync(dir)).toEqual(["landing"]);
+  });
+
+  it("scaffolds an arbitrary-depth path (a/b/c/footer)", () => {
+    const written = scaffoldComponent("a/b/c/footer", dir);
+
+    expect(written).toEqual([
+      "a/b/c/footer/manifest.json",
+      "a/b/c/footer/structure.adx",
+      "a/b/c/footer/behavior.adx.js",
+      "a/b/c/footer/style.adx.css",
+    ]);
+    expect(existsSync(join(dir, "a/b/c/footer/manifest.json"))).toBe(true);
+    expect(
+      readFileSync(join(dir, "a/b/c/footer/manifest.json"), "utf8"),
+    ).toContain(`"name": "Footer"`);
+  });
+
+  it("derives PascalCase from the last segment only (contact-us/sidebar -> Sidebar)", () => {
+    scaffoldComponent("contact-us/sidebar", dir);
+    expect(
+      readFileSync(join(dir, "contact-us/sidebar/manifest.json"), "utf8"),
+    ).toContain(`"name": "Sidebar"`);
+  });
+
+  it("scaffolds a nested component that compiles clean with no --data", () => {
+    scaffoldComponent("landing/footer", dir);
+
+    const result = compileComponent(join(dir, "landing/footer"), { tokensPath });
+
+    expect(result.html).not.toContain("{{");
+    expect(result.css).not.toContain("tokens.");
+    expect(result.html).toContain("Footer");
+  });
+
+  it("succeeds into an existing prefix dir lacking the four files, then refuses on re-run", () => {
+    // Pre-create the prefix dir (empty): creating into it still succeeds.
+    mkdirSync(join(dir, "landing"), { recursive: true });
+    expect(() => scaffoldComponent("landing/footer", dir)).not.toThrow();
+    expect(existsSync(join(dir, "landing/footer/manifest.json"))).toBe(true);
+
+    // Re-running refuses and writes nothing new (the four files now exist).
+    expect(() => scaffoldComponent("landing/footer", dir)).toThrow(
+      /already exists; refusing to overwrite$/,
+    );
+  });
+
+  it.each([
+    "landing//footer",
+    "/footer",
+    "landing/",
+    "landing/Footer",
+    "a/../b",
+    "a\\b",
+    "landing/foo--bar",
+    "/landing",
+  ])("rejects %o with an [ADX] error and writes nothing", (bad) => {
+    expect(() => scaffoldComponent(bad, dir)).toThrow(/^\[ADX\]/);
+    // Nothing was written: the temp dir is untouched.
+    expect(readdirSync(dir)).toEqual([]);
+  });
 });
 
 describe("validateComponentName", () => {
@@ -152,6 +233,36 @@ describe("validateComponentName", () => {
       expect(() => validateComponentName(bad)).toThrow(/^\[ADX\] .* invalid/);
     },
   );
+});
+
+describe("parseComponentPath", () => {
+  it("parses a bare name into an empty prefix and itself as the component", () => {
+    expect(parseComponentPath("button")).toEqual({ dirs: [], name: "button" });
+  });
+
+  it("splits a nested path into the dir prefix and the last segment", () => {
+    expect(parseComponentPath("landing/footer")).toEqual({
+      dirs: ["landing"],
+      name: "footer",
+    });
+    expect(parseComponentPath("a/b/c/footer")).toEqual({
+      dirs: ["a", "b", "c"],
+      name: "footer",
+    });
+  });
+
+  it.each([
+    "landing//footer",
+    "/footer",
+    "landing/",
+    "landing/Footer",
+    "a/../b",
+    "a\\b",
+    "",
+    "landing/foo--bar",
+  ])("rejects %o with an [ADX] invalid error", (bad) => {
+    expect(() => parseComponentPath(bad)).toThrow(/^\[ADX\] .* invalid/);
+  });
 });
 
 describe("pascalCase", () => {
@@ -221,5 +332,26 @@ describe("adx create CLI dispatch", () => {
     expect(code).toBe(1);
     const errText = stderr.mock.calls.map((c) => String(c[0])).join("");
     expect(errText).toMatch(/^\[ADX\]/m);
+  });
+
+  it("creates a nested component under the current dir, exit 0", () => {
+    const code = run(argsFor({ command: "create", dir: "landing/footer" }));
+
+    expect(code).toBe(0);
+    expect(existsSync(join(cwd, "landing", "footer", "manifest.json"))).toBe(
+      true,
+    );
+    const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
+    expect(printed).toContain("landing/footer/manifest.json");
+    expect(printed).toContain("landing/footer/style.adx.css");
+  });
+
+  it("returns 1 with an [ADX] error and writes nothing on an invalid nested path", () => {
+    const code = run(argsFor({ command: "create", dir: "landing//footer" }));
+
+    expect(code).toBe(1);
+    const errText = stderr.mock.calls.map((c) => String(c[0])).join("");
+    expect(errText).toMatch(/^\[ADX\]/m);
+    expect(existsSync(join(cwd, "landing"))).toBe(false);
   });
 });

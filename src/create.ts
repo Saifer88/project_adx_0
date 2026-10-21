@@ -1,5 +1,13 @@
 /**
- * Component scaffolding for `adx create <component-name>`.
+ * Component scaffolding for `adx create <path>/<component-name>`.
+ *
+ * The create argument is parsed as a POSIX forward-slash path: every segment
+ * LEFT of the final `/` is a nested directory (created mkdir -p style on write),
+ * and the LAST segment is the component name. A bare name (no `/`) still
+ * scaffolds flat in the current directory, byte-for-byte as before. Each
+ * `/`-separated segment must independently be a valid slug, and the PascalCase
+ * manifest `name` is derived from the LAST segment only (`landing/footer` ->
+ * dir `landing/footer/`, name `Footer`).
  *
  * Unlike `adx init` (which lays down a whole starter project), `create` adds ONE
  * new four-file component into an EXISTING project. The template mirrors the
@@ -36,6 +44,33 @@ export function validateComponentName(name: string): string {
   return name;
 }
 
+/**
+ * Parse a create argument as a POSIX forward-slash path into its directory
+ * prefix segments plus the final component-name segment.
+ *
+ * Splits strictly on `/`. EACH segment must independently satisfy the slug rule
+ * {@link NAME_RE} (`/^[a-z0-9]+(?:-[a-z0-9]+)*$/`), which already excludes empty
+ * segments (so `landing//footer`, `landing/`, `/footer` all fail), `..`,
+ * backslashes (a `\` never splits, so `a\b` is one segment that fails the
+ * slug), uppercase, and leading/trailing hyphens. An absolute path has an empty
+ * leading segment and is therefore rejected. On any bad segment it throws the
+ * canonical `[ADX] <input> - …` error echoing the WHOLE user input, so no files
+ * are written. The LAST element is `name` (the component dir and PascalCase
+ * source); the preceding elements are `dirs` (the mkdir -p prefix).
+ */
+export function parseComponentPath(input: string): { dirs: string[]; name: string } {
+  const segments = input.split("/");
+  const ok = segments.length > 0 && segments.every((seg) => NAME_RE.test(seg));
+  if (!ok) {
+    throw new Error(
+      `[ADX] ${input} - invalid component path (lowercase, hyphenated segments; no empty, '..', backslash, or absolute paths)`,
+    );
+  }
+  const name = segments[segments.length - 1];
+  const dirs = segments.slice(0, -1);
+  return { dirs, name };
+}
+
 /** Derive a PascalCase manifest name from a slug (`widget-card` -> `WidgetCard`). */
 export function pascalCase(name: string): string {
   return name
@@ -54,7 +89,12 @@ export function pascalCase(name: string): string {
 export function templatedFiles(
   name: string,
 ): { path: string; contents: string }[] {
-  const pascal = pascalCase(name);
+  // Parse the argument as a POSIX path: leading segments are a mkdir -p prefix,
+  // the LAST segment is the component name AND the PascalCase source. A bare
+  // name has an empty prefix, so `dir`/paths/name are byte-for-byte as before.
+  const { dirs, name: last } = parseComponentPath(name);
+  const prefix = dirs.length > 0 ? `${dirs.join("/")}/${last}` : last;
+  const pascal = pascalCase(last);
 
   const manifest = `{
   "name": "${pascal}",
@@ -141,22 +181,28 @@ export function onAction(state) {
 `;
 
   return [
-    { path: `${name}/manifest.json`, contents: manifest },
-    { path: `${name}/structure.adx`, contents: structure },
-    { path: `${name}/behavior.adx.js`, contents: behavior },
-    { path: `${name}/style.adx.css`, contents: style },
+    { path: `${prefix}/manifest.json`, contents: manifest },
+    { path: `${prefix}/structure.adx`, contents: structure },
+    { path: `${prefix}/behavior.adx.js`, contents: behavior },
+    { path: `${prefix}/style.adx.css`, contents: style },
   ];
 }
 
 /**
  * Scaffold one new four-file component named `name` into `targetDir` (default
- * CWD). Validates the name first, then delegates to the shared conflict-safe
- * {@link writeFileSet}: if any of the four files already exists it writes
- * nothing and throws the `[ADX] … already exists; refusing to overwrite` error.
+ * CWD). `name` may be a POSIX path (`landing/footer`): leading segments become
+ * nested folders, the last segment is the component. Validates every segment
+ * first (throwing the `[ADX] <input> - …` error on any bad/empty/`..`/backslash/
+ * absolute segment so nothing is written), then delegates to the shared
+ * conflict-safe {@link writeFileSet}: if any of the four component files already
+ * exists it writes nothing and throws the `[ADX] … already exists; refusing to
+ * overwrite` error. Intermediate directories are created mkdir -p style on
+ * write, but only the four files form the overwrite-guarded set — creating into
+ * an existing folder that lacks them succeeds.
  *
  * @returns the relative paths written, in order.
  */
 export function scaffoldComponent(name: string, targetDir = "."): string[] {
-  validateComponentName(name);
+  parseComponentPath(name);
   return writeFileSet(resolve(targetDir), templatedFiles(name));
 }

@@ -26,13 +26,19 @@
  *       nothing on conflict), prints what it created plus the next steps, and
  *       exits 0 on success / 1 on error, like `build`/`check`.
  *
- *   adx create <component-name>
+ *   adx create <path>/<component-name>
  *       Scaffolds ONE new four-file component (`<name>/{manifest.json,
  *       structure.adx,behavior.adx.js,style.adx.css}`) into the current project
  *       from a minimal, valid, token-using, WCAG-AA template whose props all
- *       default (so `adx build <name>` succeeds with no `--data`). One-shot: it
- *       validates the name, refuses to overwrite (writing nothing on conflict),
- *       prints each created path, and exits 0 on success / 1 on error.
+ *       default (so `adx build <name>` succeeds with no `--data`). The argument
+ *       is a POSIX path: any `/`-separated segments LEFT of the last become
+ *       nested folders (mkdir -p), the LAST segment is the component name and
+ *       the source of the PascalCase manifest `name` (`landing/footer` -> dir
+ *       `landing/footer/`, name `Footer`). A bare name still scaffolds flat in
+ *       CWD. Each segment must be a valid slug or it is rejected
+ *       (`[ADX] <input> - …`, exit 1). One-shot: it validates the path, refuses
+ *       to overwrite the four files (writing nothing on conflict), prints each
+ *       created path, and exits 0 on success / 1 on error.
  *
  *   adx pattern [<name>] [targetDir] [--list]
  *       Scaffolds ONE accessible-by-default built-in pattern (`form`, `table`,
@@ -218,8 +224,9 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
       "Scaffold an npm-ready app-shell starter into ./<name> (or CWD); --tailwind pins Tailwind.",
   },
   {
-    invocation: "adx create <component-name>",
-    description: "Scaffold one new component into the current project.",
+    invocation: "adx create <path>/<component-name>",
+    description:
+      "Scaffold one new component into the current project (optionally under a nested folder path).",
   },
   {
     invocation: "adx pattern [<name>] [targetDir] [--list]",

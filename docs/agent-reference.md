@@ -366,7 +366,7 @@ adx build <page.json> [--out dist] [--tokens <path>] [--site <site.json>]  # pag
 adx check <dir>  [--tokens <path>] [--data <file.json>]               # validate a component in-memory
 adx check <page.json> [--tokens <path>] [--site <site.json>]          # validate every page instance
 adx init [name] [--tailwind]                                          # scaffold an app-shell starter (./<name> or CWD); --tailwind pins Tailwind
-adx create <component-name>                                           # scaffold one new component into the current project
+adx create <path>/<component-name>                                    # scaffold one new component (last segment = name; leading segments = nested folders)
 adx pattern [<name>] [targetDir] [--list]                             # scaffold an accessible built-in pattern (form, table, modal)
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 adx tokens [--tokens <path>]                                          # list all design tokens, grouped by category
@@ -394,6 +394,16 @@ form` -> `./form/` and `adx pattern form ui/contact-form` -> `./ui/contact-form/
 an unknown name errors `[ADX] <name> - unknown pattern (available: …)` and
 exits 1; a conflict writes nothing and exits 1. Adding a pattern is a data edit
 in the compiler's pattern catalog.
+
+`adx create` argument is a POSIX forward-slash path. Each `/`-separated segment
+must independently match the slug rule `^[a-z0-9]+(?:-[a-z0-9]+)*$`; leading
+segments become nested folders (mkdir -p), the LAST segment is the component
+name AND the PascalCase manifest `name` source (`landing/footer` -> dir
+`landing/footer/`, name `Footer`; `contact-us/sidebar` -> `Sidebar`). Any empty
+segment (`landing//footer`, `landing/`, `/footer`), `..`, backslash, absolute
+path, or bad slug is rejected `[ADX] <input> - …`, exit 1, nothing written. A
+component under a nested path is referenced by that relative path in a parent's
+composition `deps` (e.g. `"deps": ["./landing/footer"]`).
 
 Future CLI proposals (`dev`, richer `create`/`pattern`) are tracked in the
 [roadmap](./roadmap.md), not available commands.

@@ -37,7 +37,7 @@ Build artifacts (`dist/`, `node_modules/`) are gitignored.
 
 ## Component conventions (from the design spec)
 
-Every component is a flat directory holding exactly four files. No nesting.
+A component is a flat directory holding exactly four files — no sub-folders inside a component.
 
 ```
 component-name/
@@ -48,6 +48,8 @@ component-name/
 ```
 
 Rationale for flatness: agents scan directory trees, so flat layouts cost fewer tokens to navigate. Separated concerns let an agent target one file without parsing the rest.
+
+Flat remains the default and recommended layout for token efficiency. Grouping components under nested PARENT folders is a supported, opt-in convention for organizing at scale — `adx create <path>/<component-name>` creates the leading path segments as folders (mkdir -p) and treats the last segment as the component (its own four files stay flat). Nesting PARENT folders is distinct from nesting WITHIN a component, which is still not allowed.
 
 ## Key syntax (keep token cost low)
 

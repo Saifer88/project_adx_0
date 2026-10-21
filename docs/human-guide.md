@@ -606,7 +606,7 @@ Milestones 1 and 2 (plus the shipped scaffolders) provide the init/create/patter
 ```bash
 # Working today (M1 + M2)
 adx init [name] [--tailwind]                                          # scaffold an app-shell starter (./<name>, or the current dir); --tailwind pins Tailwind
-adx create <component-name>                                           # scaffold one new component into the current project
+adx create <path>/<component-name>                                    # scaffold one new component (last segment = name; leading segments = nested folders)
 adx pattern [<name>] [targetDir] [--list]                             # scaffold an accessible built-in pattern (form, table, modal)
 adx build <dir>  [--out dist] [--tokens <path>] [--data <file.json>]  # compile one component to static HTML + CSS + glue
 adx build <page.json> [--out dist] [--tokens <path>] [--site <site.json>]  # compile a page (composes components); --site merges shared assets
@@ -639,23 +639,42 @@ when the dialog is mounted.
 
 ### Add a component to an existing project
 
-`adx create <component-name>` drops one new four-file component into the current
-project (it does not scaffold a whole project — use `adx init` for that). The
-name is a lowercase, hyphenated slug (e.g. `widget-card`), which also becomes the
-component directory and a PascalCase manifest name (`WidgetCard`):
+`adx create <path>/<component-name>` drops one new four-file component into the
+current project (it does not scaffold a whole project — use `adx init` for
+that). The name is a lowercase, hyphenated slug (e.g. `widget-card`), which also
+becomes the component directory and a PascalCase manifest name (`WidgetCard`):
 
 ```bash
 adx create widget-card   # writes widget-card/{manifest.json,structure.adx,behavior.adx.js,style.adx.css}
 adx check widget-card    # compiles clean with no --data (every prop has a default)
 ```
 
+You can also group components under folders by giving a path. Everything to the
+LEFT of the last `/` is created as nested folders (mkdir -p style); the LAST
+segment is the component name:
+
+```bash
+adx create landing/footer    # writes landing/footer/{manifest.json,…}; manifest name Footer
+adx create landing/header    # writes landing/header/…; manifest name Header
+adx create contact-us/main   # arbitrary depth works: a/b/c/footer is valid too
+adx create button            # a bare name still scaffolds flat in the current dir
+```
+
+The PascalCase manifest `name` comes from the LAST segment only, so the same
+component name is reusable across folders (`landing/footer` and `blog/footer`
+both get name `Footer`). Each `/`-separated segment must be a valid slug;
+intermediate folders are created on demand, but only the four component files
+are overwrite-guarded — so creating into an existing folder that lacks them
+succeeds.
+
 Every prop defaults, so the component builds and checks immediately, and the
 template already meets the token + WCAG-AA quality bar (semantic `<article>`, an
 `<h2>` title so it composes under a page's `<h1>`, and a token-sized touch
 target on the button). Like `adx init`, it refuses to overwrite: if any of the
 four files already exists it writes nothing and exits 1 with the `[ADX] … already
-exists; refusing to overwrite` error. An invalid name (uppercase, a path
-separator, `..`) is rejected with an `[ADX] … invalid component name` error.
+exists; refusing to overwrite` error. An invalid or empty segment, a `..`
+segment, a backslash, or an absolute path is rejected with an `[ADX] <input> - …`
+error, exit 1, writing nothing.
 
 ### Start a new project
 
