@@ -59,6 +59,12 @@
  *       build/check. One-shot: exits 0 on success, or prints the `[ADX] …` error
  *       to stderr and exits 1 on a load/parse failure.
  *
+ *   adx version
+ *       Prints the version of the ADX CLI that is running (the one the terminal's
+ *       `adx` resolved to — local or global) to stdout and exits 0. Reads this
+ *       package's own package.json; no CWD lookup and no network. Prints the
+ *       standard `[ADX] …` error + exits 1 only if that metadata is unreadable.
+ *
  *   adx help
  *       Prints the full command listing (every subcommand with its flags and a
  *       one-line description) to stdout and exits 0 — an explicit request, not an
@@ -238,6 +244,10 @@ const COMMANDS: ReadonlyArray<{ invocation: string; description: string }> = [
     description: "List all design tokens, grouped by category.",
   },
   {
+    invocation: "adx version",
+    description: "Print the version of the running ADX CLI.",
+  },
+  {
     invocation: "adx help",
     description: "Show this full command listing.",
   },
@@ -326,6 +336,48 @@ function runTokens(args: ParsedArgs): number {
       err instanceof Error ? err.message : String(err);
     // Normalize bare loader/JSON errors into the standard `[ADX] <path> - …`
     // shape used across the CLI.
+    const text = message.startsWith("[ADX]")
+      ? message
+      : `[ADX] ${path} - ${message}`;
+    process.stderr.write(text + "\n");
+    return 1;
+  }
+}
+
+/**
+ * Print the version of the ADX CLI that is actually running (`adx version`).
+ *
+ * Reads the `version` field from THIS package's own `package.json`, resolved
+ * from the compiled module's location (`import.meta.url` -> dist/cli.js -> up to
+ * the package root), exactly like `runTokens` resolves the bundled tokens. That
+ * makes the reported number "the adx you invoked" regardless of whether it is a
+ * local (`node_modules/.bin/adx`) or global install — no CWD lookup, no network.
+ * One-shot: prints `<version>` to stdout and returns 0, or the standard
+ * `[ADX] <path> - …` error to stderr and returns 1 if the metadata is
+ * missing/unreadable.
+ */
+function runVersion(): number {
+  const path = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "package.json",
+  );
+  try {
+    const raw = readFileSync(path, "utf8");
+    const meta = JSON.parse(raw) as unknown;
+    if (
+      typeof meta !== "object" ||
+      meta === null ||
+      !("version" in meta) ||
+      typeof (meta as { version: unknown }).version !== "string" ||
+      !(meta as { version: string }).version
+    ) {
+      throw new Error("missing version field");
+    }
+    process.stdout.write(`${(meta as { version: string }).version}\n`);
+    return 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     const text = message.startsWith("[ADX]")
       ? message
       : `[ADX] ${path} - ${message}`;
@@ -657,6 +709,11 @@ function run(args: ParsedArgs): number {
   // `tokens` lists the design tokens; one-shot like build/check/init.
   if (args.command === "tokens") {
     return runTokens(args);
+  }
+
+  // `version` prints the running CLI's own version; one-shot, offline.
+  if (args.command === "version") {
+    return runVersion();
   }
 
   if (

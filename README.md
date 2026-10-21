@@ -165,6 +165,7 @@ grows. Edit source files, check, build, and refresh the preview.
 | `adx build <componentDir\|page.json>` | Generate static HTML, scoped CSS, and hydration JavaScript. |
 | `adx serve [dir]` | Preview compiled output; defaults to `dist`. No compilation or hot reload. |
 | `adx tokens` | List design tokens grouped by category. |
+| `adx version` | Print the version of the running ADX CLI. |
 | `adx help` | Show all commands and flags. |
 
 ```bash

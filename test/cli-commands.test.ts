@@ -98,6 +98,43 @@ describe("adx tokens", () => {
   });
 });
 
+describe("adx version", () => {
+  let stdout: ReturnType<typeof vi.spyOn>;
+  let stderr: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    stdout.mockRestore();
+    stderr.mockRestore();
+  });
+
+  it("prints this package's own version to stdout and exits 0", async () => {
+    // The reported number must equal the running CLI's own package.json version
+    // (the installed one — not a CWD lookup, not the network).
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const pkg = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL("../package.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as { version: string };
+
+    const code = run(argsFor({ command: "version" }));
+
+    expect(code).toBe(0);
+    const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
+    expect(printed.trim()).toBe(pkg.version);
+    // A plain semver string, no [ADX] error, nothing on stderr.
+    expect(printed.trim()).toMatch(/^\d+\.\d+\.\d+/);
+    expect(stderr).not.toHaveBeenCalled();
+  });
+});
+
 describe("adx help", () => {
   let stdout: ReturnType<typeof vi.spyOn>;
   let stderr: ReturnType<typeof vi.spyOn>;
@@ -117,7 +154,7 @@ describe("adx help", () => {
 
     expect(code).toBe(0);
     const printed = stdout.mock.calls.map((c) => String(c[0])).join("");
-    for (const name of ["init", "create", "build", "check", "serve", "tokens", "help"]) {
+    for (const name of ["init", "create", "build", "check", "serve", "tokens", "version", "help"]) {
       expect(printed).toContain(`adx ${name}`);
     }
     expect(stderr).not.toHaveBeenCalled();

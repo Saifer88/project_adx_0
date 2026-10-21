@@ -370,6 +370,7 @@ adx create <component-name>                                           # scaffold
 adx pattern [<name>] [targetDir] [--list]                             # scaffold an accessible built-in pattern (form, table, modal)
 adx serve [dir] [--port <n>] [--host <h>]                             # static-serve compiled output locally (no compile)
 adx tokens [--tokens <path>]                                          # list all design tokens, grouped by category
+adx version                                                           # print the running CLI's version (stdout, exit 0; offline)
 adx help                                                              # print the full command listing (stdout, exit 0)
 ```
 
