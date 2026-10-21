@@ -121,6 +121,7 @@ into an empty dir. If an ADX app already exists, work inside it.
 Once a project exists: follow AGENTS.md, ensure the local CLI is installed
 (`npm install`), then read node_modules/project-adx-0/docs/agent-reference.md.
 Work in this app and use supported APIs. Verify layout and interactions in a browser.
+If the user asks for tailwind use adx init my-app --tailwind
 ```
 
 The canonical guide also ships in the npm package at `docs/agent-reference.md`.
