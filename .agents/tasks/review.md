@@ -1,111 +1,94 @@
-# Review — `adx init` app-shell root + optional `--tailwind`
+# Review — `adx create <path>/<component-name>` (nested component paths)
 
-Branch `feat/init-app-shell-tailwind` @ `e1d5394`, base `main` @ `fe457fc`.
-Reviewed the diff against the plan, design-check, the recorded verification
-evidence, and the feature's 10 requirements. Scope of change (diff --stat):
-`src/scaffold.ts`, `src/cli.ts`, `test/init.test.ts`, `test/cli-commands.test.ts`,
-`README.md`, `docs/agent-reference.md`, `docs/human-guide.md` (plus the task
-artifacts). No compiler/codegen source touched — confirmed by the file list.
+Branch: `feat/create-nested-path` (commit `71d6d92`), base `1a9c585` (v0.2.2).
+Diff inspected: `src/create.ts`, `src/cli.ts`, `test/create.test.ts`, `README.md`,
+`docs/agent-reference.md`, `docs/human-guide.md`, `.kiro/steering/structure.md`,
+plus task artifacts.
 
-## Evidence used
-- Read the full diff of all source/test/doc files.
-- Read `verification.md` (recorded build/test output); did NOT re-run the suite.
-- Spot-verified, without re-running tests: `usage()` body, framework
-  `package.json` Tailwind pins, cold-start guard wording, AGENTS npm-package
-  guard, absence of spawn/exec/fetch in scaffold/cli, and import completeness in
-  `test/init.test.ts`.
+## Verdict: APPROVED
+
+No blocking findings. The change meets the approved requirements.
+
+## Evidence read (not re-run)
+
+`verification.md` records: full suite `npm test` -> 28 files, 374 tests passing
+(baseline 349, grew by 25, no regressions, including the byte-for-byte `usage()`
+regression and the `adx help` listing test); `npm run build` -> exit 0, no TS
+errors; end-to-end against the BUILT `dist/cli.js`: `create landing/footer`
+wrote the four files under `landing/footer/`, manifest `"name": "Footer"`,
+`check`/`build` succeeded, and `create landing//footer` was rejected (exit 1,
+nothing written). Evidence is present and sufficient; suites were not re-run.
 
 ## Requirement-by-requirement
 
-1. **app-shell four-file component, named regions, semantic HTML, token-only,
-   a11y.** PASS. `app-shell/{manifest.json,structure.adx,behavior.adx.js,style.adx.css}`
-   added as embedded templates. Structure is semantic (`<header>/<section>/<footer>`
-   inside a `<div>` wrapper — deliberately NOT a second `<main>` because the page
-   wrapper already emits `<main>`). Single `<h1>` in the header; hello-card title
-   demoted to `<h2>` (no skipped level). `style.adx.css` is `@use tokens;` with
-   token-only values and the same raw-CSS/token mix the existing `hello-card`
-   style already uses (compiler accepts it; recorded run shows no leftover
-   `tokens.`). Readable centered `max-width` measure and reduced-motion-safe (no
-   motion). The "named header/main/footer slots" are realized as semantic layout
-   regions rather than ADX `<slot>` outlets — a correct call: a top-level
-   component's `<slot>` would leak an unfilled placeholder into the page HTML
-   (`codegen/html.ts#emitSlot`), so declaring `"slots": []` and rendering real
-   regions is the right, syntax-honest realization.
+- **Nested paths accepted, mkdir -p prefix, last segment = component.**
+  `parseComponentPath` splits on `/`, `templatedFiles` builds
+  `<prefix>/<last>/…`, `writeFileSet` mkdir -p's parents. Confirmed in
+  `src/create.ts` and the nested/arbitrary-depth tests.
 
-2. **index.json composes app-shell as root with hello-card in its content region,
-   existing syntax only.** PASS. Page uses the standard `components: [{ use:
-   "./app-shell", data }]` shape; app-shell composes the child via `deps:
-   ["../hello-card"]` + the kebab element `<hello-card />` — the verified existing
-   composition mechanism. No page-level slot syntax invented.
+- **Every segment independently passes the slug regex.**
+  `parseComponentPath` runs each segment through the existing `NAME_RE`
+  `/^[a-z0-9]+(?:-[a-z0-9]+)*$/`. No new/divergent regex introduced.
 
-3. **All new files routed through SCAFFOLD_FILES / writeFileSet, conflict-safe,
-   no npm/network.** PASS. The four app-shell files are new `SCAFFOLD_FILES`
-   entries; the conditional Tailwind files are layered in `scaffoldProject` and
-   the full assembled set passes through `writeFileSet` (clobber guard runs over
-   every file before any write). Tests assert no partial write for both default
-   and `--tailwind` conflicts, including a new `app-shell/manifest.json`
-   non-creation check. No spawn/exec/fetch in `scaffold.ts` or `cli.ts`.
+- **PascalCase name from the LAST segment only.** `pascalCase(last)` where
+  `last = segments[segments.length - 1]`. `contact-us/sidebar -> Sidebar`,
+  `landing/footer -> Footer`, verified by tests.
 
-4. **`--tailwind` non-interactive flag in existing cli.ts style, documented.**
-   PASS. Added `tailwind?: boolean` to `ParsedArgs`; gated with
-   `const isInit = command === "init"` and `else if (isInit && arg ===
-   "--tailwind")`, exactly mirroring the `--list`/`isPattern` precedent. Documented
-   in the `adx init` doc comment, the `COMMANDS` table (fed to `helpText()` /
-   `adx help`), and all three docs with `adx init [name] [--tailwind]`.
-   NOTE (not a blocker): the short error-path `usage()` literal still reads
-   `adx init [name]`. The coder deliberately left `usage()` byte-stable (its own
-   comment and a regression test pin it verbatim for stderr stability) and surfaced
-   the flag through the full `adx help` listing instead. Requirement #4's
-   "help/usage" is satisfied by the documented help output; the deviation from the
-   plan's step-5 wording is intentional and sound.
+- **Flat single-segment case preserved byte-for-byte.** For a bare name
+  `dirs` is empty, so `prefix = last` and the four `path` values are identical
+  to the prior `${name}/…`. File CONTENTS are untouched (the manifest name still
+  flows from the pascal name). The flat SUCCESS output is genuinely unchanged.
+  Note: the flat REJECTION path now flows through `parseComponentPath` (message
+  `invalid component path …`) instead of `validateComponentName` (`invalid
+  component name …`). This is not a byte-for-byte text match of the old flat
+  rejection string, but (a) the task pins only rejection + exit 1 + nothing
+  written for bad input, all preserved; (b) `validateComponentName` itself is
+  exported unchanged and its regression test still passes; (c) the plan calls
+  this out explicitly as an accepted message-wording consequence. Not a blocker.
 
-5. **`--tailwind` adds exact pinned @tailwindcss/cli 4.3.3 dev dep + tailwind
-   build script, input CSS, assets.css to compiled tailwind.css (not CDN).** PASS.
-   Framework `package.json` pins `@tailwindcss/cli` and `tailwindcss` to exactly
-   `4.3.3`; the Tailwind-aware thunk reads those exact strings from the CLI's own
-   `../package.json` (not hardcoded) and throws the standard `[ADX]` error if
-   either is missing (so a broken install writes nothing). Adds
-   `tailwind: "@tailwindcss/cli -i styles/tailwind.css -o dist/tailwind.css
-   --minify"` and `build: "npm run tailwind && adx build index.json"`. Scaffolds
-   `styles/tailwind.css` (`@import "tailwindcss" source("../");`). The Tailwind
-   `index.json` references `/tailwind.css` via `assets.css` (build-time path to
-   `dist/tailwind.css`, not the Play CDN).
+- **Rejection + exit 1 + nothing written** for `landing//footer`, `landing/`,
+  `/footer`, uppercase segment, `..` (`a/../b`), backslash (`a\b`), absolute,
+  bad slug (`foo--bar`). All rejected before any write because
+  `scaffoldComponent` calls `parseComponentPath(name)` first and throws; the
+  CLI try/catch maps the throw to stderr + exit 1. Tests assert the target dir
+  stays empty after each rejection.
 
-6. **Without the flag, output unchanged except Feature 1; every prop defaults.**
-   PASS. Base `PAGE` has no `assets`, base package scripts unchanged, no `styles/`
-   dir — asserted by the new "default (no flag)" test. All app-shell props
-   (`appName`, `tagline`, `year`) and hello-card props default, so bare
-   `adx check index.json` passes with no `--data` (recorded).
+- **Path traversal outside target impossible.** Every segment must match the
+  strict slug, which cannot be empty, `.`, `..`, or contain `/` or `\`. A
+  backslash never splits, so `a\b` is a single segment that fails the slug; an
+  absolute path yields an empty leading segment that fails. A valid segment can
+  only descend. Verified by logic and the rejection tests.
 
-7. **Package `project-adx-0` / executable `adx` kept accurate.** PASS. Generated
-   package stays `adx-app` with the ADX dep pinned to `project-adx-0`; AGENTS guard
-   "Do not install the npm package named `adx`; that is the executable name" and
-   the cold-start "do NOT `npm install project-adx-0`" guard are intact in
-   README/agent-reference/AGENTS.
+- **Conflict-safe no-partial-write guarantee preserved.** `src/scaffold.ts` is
+  unchanged. `writeFileSet` checks all four files for existence BEFORE writing
+  anything and throws `already exists; refusing to overwrite` on conflict. Only
+  the four component files are the guarded set; creating into an existing prefix
+  dir lacking them succeeds (test `succeeds into an existing prefix dir …`).
 
-8. **No compiler/codegen behavior changed.** PASS. Diff touches only
-   `scaffold.ts`, `cli.ts`, their tests, and docs.
+- **`usage()` UNCHANGED.** Not present in the diff; the new form is documented
+  via the top-of-file doc comment and the `COMMANDS` table entry (which feeds
+  `helpText()`), exactly as required.
 
-9. **Docs updated consistently, cold-start guard intact.** PASS. README,
-   agent-reference, human-guide all updated for the app-shell root and
-   `--tailwind`; the human-guide Tailwind example correctly demotes its heading to
-   `<h2>` to match the new single-`<h1>` shell. Grammar doc needed no change
-   (existing `deps`/composition only). Cold-start guard verified present verbatim.
+- **Compiler and other commands untouched.** Diff touches only `src/create.ts`
+  and two doc-comment/`COMMANDS` lines in `src/cli.ts`; no changes to compile,
+  pages, pattern, init, or serve.
 
-10. **Tests added/extended; recorded count grew, no regressions.** PASS. Recorded
-    `vitest run` = 348 passed (28 files), up from the 338 baseline; +10 matches the
-    diff (7 new `scaffoldProject` cases incl. the 2-case `it.each` clobber, 2 new
-    CLI dispatch cases, 1 new `parseArgs` gating case). New assertions cover
-    heading hierarchy (1 `<h1>`, has `<h2>`, no `<h3>`), semantic regions, the
-    app-shell compile, Tailwind file/dep/script/assets wiring, no-install
-    guarantee, and clobber safety. Imports (`mkdirSync`, `dirname`) present.
-    `npm run build` recorded clean.
+- **Documentation updated consistently.** `README.md`, `docs/agent-reference.md`,
+  and `docs/human-guide.md` all document the `<path>/<component-name>` form with
+  examples and the last-segment-name rule. `.kiro/steering/structure.md` is
+  reconciled: it keeps "a component is a flat directory of four files (no
+  sub-folders inside a component)" and adds that PARENT-folder grouping is a
+  supported opt-in, distinct from within-component nesting — no silent
+  contradiction of the flat-layout steering. `docs/adx-grammar.md` was
+  intentionally left unchanged; a grep confirms it does not document the create
+  argument grammar. The agent-reference note that a nested component is
+  referenced via a relative `deps` path (`"./landing/footer"`) is consistent
+  with `src/codegen/compose.ts`, which resolves deps relative to the using
+  component's directory.
 
-## Verdict
-No blocking findings. All ten requirements are met; the one plan deviation
-(`usage()` left byte-stable, flag documented via `adx help`) is deliberate,
-justified, and still satisfies the requirement. Recorded verification is detailed,
-internally consistent, and corroborated by the diff — no articulable doubt
-warranting a re-run.
+## Spot-check performed
 
-APPROVED.
+One narrow spot-check: confirmed `compose.ts` resolves `manifest.deps` with
+`resolve(ctx.absDir, dep)` (relative to the using component), so the new
+agent-reference doc claim about referencing nested components by relative path
+is accurate, not a contradiction.
